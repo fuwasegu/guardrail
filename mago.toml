@@ -20,5 +20,8 @@ excessive-parameter-list = { enabled = false }
 halstead = { enabled = false }
 prefer-early-continue = { enabled = false }
 
+[analyzer]
+excludes = ["tests"]
+
 [formatter]
 excludes = ["vendor", "tests/Fixtures"]
