@@ -26,7 +26,7 @@ Guardrail **automatically blocks in CI**.
 ## Installation
 
 ```bash
-composer require --dev because-and/guardrail
+composer require --dev fuwasegu/guardrail
 ```
 
 ## Quick Start
