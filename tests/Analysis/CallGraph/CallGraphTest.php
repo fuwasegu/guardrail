@@ -69,12 +69,7 @@ final class CallGraphTest extends TestCase
 
         $this->graph->addCall($call);
 
-        $this->assertTrue($this->graph->hasPathTo(
-            'App\\Controller',
-            'index',
-            'App\\Service',
-            'execute',
-        ));
+        $this->assertTrue($this->graph->hasPathTo('App\\Controller', 'index', 'App\\Service', 'execute'));
     }
 
     public function testHasPathToIndirectCall(): void
@@ -95,12 +90,7 @@ final class CallGraphTest extends TestCase
             line: 20,
         ));
 
-        $this->assertTrue($this->graph->hasPathTo(
-            'App\\Controller',
-            'index',
-            'App\\Repository',
-            'find',
-        ));
+        $this->assertTrue($this->graph->hasPathTo('App\\Controller', 'index', 'App\\Repository', 'find'));
     }
 
     public function testHasPathToReturnsFalseWhenNoPath(): void
@@ -113,12 +103,7 @@ final class CallGraphTest extends TestCase
             line: 10,
         ));
 
-        $this->assertFalse($this->graph->hasPathTo(
-            'App\\Controller',
-            'index',
-            'App\\Repository',
-            'find',
-        ));
+        $this->assertFalse($this->graph->hasPathTo('App\\Controller', 'index', 'App\\Repository', 'find'));
     }
 
     public function testHasPathToHandlesCycles(): void
@@ -140,12 +125,7 @@ final class CallGraphTest extends TestCase
         ));
 
         // Should not infinite loop
-        $this->assertFalse($this->graph->hasPathTo(
-            'App\\A',
-            'methodA',
-            'App\\C',
-            'methodC',
-        ));
+        $this->assertFalse($this->graph->hasPathTo('App\\A', 'methodA', 'App\\C', 'methodC'));
     }
 
     public function testFindPathToDirectCall(): void
@@ -160,12 +140,7 @@ final class CallGraphTest extends TestCase
 
         $this->graph->addCall($call);
 
-        $path = $this->graph->findPathTo(
-            'App\\Controller',
-            'index',
-            'App\\Service',
-            'execute',
-        );
+        $path = $this->graph->findPathTo('App\\Controller', 'index', 'App\\Service', 'execute');
 
         $this->assertNotNull($path);
         $this->assertCount(1, $path);
@@ -189,12 +164,7 @@ final class CallGraphTest extends TestCase
             line: 20,
         ));
 
-        $path = $this->graph->findPathTo(
-            'App\\Controller',
-            'index',
-            'App\\Repository',
-            'find',
-        );
+        $path = $this->graph->findPathTo('App\\Controller', 'index', 'App\\Repository', 'find');
 
         $this->assertNotNull($path);
         $this->assertCount(2, $path);
@@ -204,12 +174,7 @@ final class CallGraphTest extends TestCase
 
     public function testFindPathToReturnsNullWhenNoPath(): void
     {
-        $this->assertNull($this->graph->findPathTo(
-            'App\\Controller',
-            'index',
-            'App\\Service',
-            'execute',
-        ));
+        $this->assertNull($this->graph->findPathTo('App\\Controller', 'index', 'App\\Service', 'execute'));
     }
 
     public function testGetAllMethods(): void
