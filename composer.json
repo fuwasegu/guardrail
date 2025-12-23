@@ -1,0 +1,56 @@
+{
+    "name": "guardrail/guardrail",
+    "description": "PHP Call Chain Assertion Tool - Ensure required methods are called in execution paths",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "static-analysis",
+        "linter",
+        "call-graph",
+        "authorization",
+        "php"
+    ],
+    "authors": [
+        {
+            "name": "Guardrail Contributors"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "nikic/php-parser": "^5.0",
+        "symfony/console": "^6.0|^7.0",
+        "symfony/finder": "^6.0|^7.0"
+    },
+    "require-dev": {
+        "carthage-software/mago": "^1.0",
+        "phpunit/phpunit": "^10.0|^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Guardrail\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Guardrail\\Tests\\": "tests/"
+        }
+    },
+    "bin": [
+        "bin/guardrail"
+    ],
+    "scripts": {
+        "test": "phpunit",
+        "lint": "mago lint",
+        "lint:fix": "mago lint --fix",
+        "format": "mago format",
+        "analyze": "mago analyze",
+        "cs": ["@format", "@lint"]
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "carthage-software/mago": true
+        }
+    },
+    "minimum-stability": "stable"
+}

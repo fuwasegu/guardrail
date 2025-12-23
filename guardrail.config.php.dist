@@ -1,0 +1,35 @@
+<?php
+
+declare(strict_types=1);
+
+use Guardrail\Config\GuardrailConfig;
+
+// Example configuration for Guardrail
+// Copy this file to guardrail.config.php and customize for your project
+
+return GuardrailConfig::create()
+
+    // Example: Ensure all UseCases call authorize()
+    ->rule('authorization')
+        ->entryPoints()
+            ->namespace('App\\UseCase\\*')
+            ->method('execute')
+        ->mustCall([App\Auth\Authorizer::class, 'authorize'])
+        ->atLeastOnce()
+        ->message('All UseCases must call Authorizer::authorize()')
+
+    // Example: Ensure admin operations are audit logged
+    // ->rule('audit-logging')
+    //     ->entryPoints()
+    //         ->namespace('App\\UseCase\\Admin\\*')
+    //     ->mustCall([App\Logging\AuditLogger::class, 'log'])
+    //     ->atLeastOnce()
+
+    // Example: Ensure write operations use transactions
+    // ->rule('transaction')
+    //     ->entryPoints()
+    //         ->namespace('App\\UseCase\\Write\\*')
+    //     ->mustCall([Illuminate\Support\Facades\DB::class, 'beginTransaction'])
+    //     ->atLeastOnce()
+
+    ->build();

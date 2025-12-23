@@ -1,0 +1,22 @@
+# Mago Configuration
+# https://mago.carthage.software/
+
+php-version = "8.2"
+
+[source]
+paths = ["src", "bin"]
+includes = ["vendor"]
+extensions = ["php"]
+
+[linter]
+excludes = ["vendor"]
+
+[linter.rules]
+# Downgrade complexity rules to warning (will refactor later)
+cyclomatic-complexity = { level = "warning" }
+kan-defect = { level = "warning" }
+too-many-methods = { level = "warning" }
+excessive-parameter-list = { level = "warning" }
+
+[formatter]
+excludes = ["vendor"]
