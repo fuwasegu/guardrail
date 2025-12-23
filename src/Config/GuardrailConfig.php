@@ -4,16 +4,21 @@ declare(strict_types=1);
 
 namespace Guardrail\Config;
 
+use Closure;
+
 /**
  * Main configuration class for Guardrail.
  *
  * @example
  * return GuardrailConfig::create()
- *     ->rule('authorization')
- *         ->entryPoints()
+ *     ->rule('authorization', function (RuleBuilder $rule) {
+ *         $rule->entryPoints()
  *             ->namespace('App\\UseCase\\*')
- *         ->mustCall([Authorizer::class, 'authorize'])
- *         ->atLeastOnce()
+ *             ->method('execute');
+ *         $rule->mustCall([Authorizer::class, 'authorize'])
+ *             ->atLeastOnce()
+ *             ->message('All UseCases must call authorize()');
+ *     })
  *     ->build();
  */
 final class GuardrailConfig
@@ -28,11 +33,18 @@ final class GuardrailConfig
         return new self();
     }
 
-    public function rule(string $name): RuleBuilder
+    /**
+     * Define a new rule with a closure for configuration.
+     *
+     * @param string $name The rule name
+     * @param Closure(RuleBuilder): void $configure Closure to configure the rule
+     */
+    public function rule(string $name, Closure $configure): self
     {
-        $builder = new RuleBuilder($this, $name);
+        $builder = new RuleBuilder($name);
+        $configure($builder);
         $this->ruleBuilders[] = $builder;
-        return $builder;
+        return $this;
     }
 
     /**
@@ -54,6 +66,7 @@ final class GuardrailConfig
             throw new \InvalidArgumentException("Configuration file not found: {$path}");
         }
 
+        /** @var self|list<Rule>|mixed $config */
         $config = require $path;
 
         if ($config instanceof self) {

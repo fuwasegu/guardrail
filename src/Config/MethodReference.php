@@ -34,7 +34,10 @@ final class MethodReference implements \Stringable
     {
         // Support wildcard patterns like '*Repository'
         if (str_contains($this->className, '*')) {
-            $pattern = '/^' . str_replace('\\*', '.*', preg_quote($this->className, '/')) . '$/';
+            $pattern =
+                '/^'
+                . str_replace(search: '\\*', replace: '.*', subject: preg_quote($this->className, delimiter: '/'))
+                . '$/';
             return (bool) preg_match($pattern, $className);
         }
 

@@ -34,10 +34,11 @@ final class EntryPointBuilder
 
         if ($this->inExcluding) {
             $this->exclusions[] = $collector;
-        } else {
-            $this->collectors[] = $collector;
-            $this->currentNamespaceCollector = $collector;
+            return $this;
         }
+
+        $this->collectors[] = $collector;
+        $this->currentNamespaceCollector = $collector;
 
         return $this;
     }
@@ -80,19 +81,11 @@ final class EntryPointBuilder
     }
 
     /**
-     * @param array{0: class-string, 1: string} $method
+     * End entry point configuration and return to the rule builder.
      */
-    public function mustCall(array $method): RuleBuilder
+    public function end(): RuleBuilder
     {
-        return $this->parent->mustCall($method);
-    }
-
-    /**
-     * @param list<array{0: class-string, 1: string}> $methods
-     */
-    public function mustCallAnyOf(array $methods): RuleBuilder
-    {
-        return $this->parent->mustCallAnyOf($methods);
+        return $this->parent;
     }
 
     public function build(): CollectorInterface

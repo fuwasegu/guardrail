@@ -124,7 +124,7 @@ final class NamespaceCollector implements CollectorInterface
                     $methodName = $node->name->toString();
 
                     // Apply method filter
-                    if ($this->methodFilters !== [] && !in_array($methodName, $this->methodFilters, true)) {
+                    if ($this->methodFilters !== [] && !in_array($methodName, $this->methodFilters, strict: true)) {
                         return null;
                     }
 
@@ -176,10 +176,10 @@ final class NamespaceCollector implements CollectorInterface
                 // Convert glob pattern to regex
                 // ** matches any namespace depth
                 // * matches within a single namespace segment
-                $regex = str_replace('\\', '\\\\', $pattern);
-                $regex = str_replace('**', '{{DOUBLE_STAR}}', $regex);
-                $regex = str_replace('*', '[^\\\\]*', $regex);
-                $regex = str_replace('{{DOUBLE_STAR}}', '.*', $regex);
+                $regex = str_replace(search: '\\', replace: '\\\\', subject: $pattern);
+                $regex = str_replace(search: '**', replace: '{{DOUBLE_STAR}}', subject: $regex);
+                $regex = str_replace(search: '*', replace: '[^\\\\]*', subject: $regex);
+                $regex = str_replace(search: '{{DOUBLE_STAR}}', replace: '.*', subject: $regex);
                 $regex = '/^' . $regex . '$/';
 
                 return (bool) preg_match($regex, $subject);

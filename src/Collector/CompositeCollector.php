@@ -30,49 +30,74 @@ final class CompositeCollector implements CollectorInterface
     public function collect(string $basePath): iterable
     {
         if ($this->isOr) {
-            // Union: yield from all collectors, deduplicate by identifier
-            $seen = [];
-            foreach ($this->collectors as $collector) {
-                foreach ($collector->collect($basePath) as $entryPoint) {
-                    $id = $entryPoint->getIdentifier();
-                    if (!isset($seen[$id])) {
-                        $seen[$id] = true;
-                        yield $entryPoint;
-                    }
-                }
-            }
-        } else {
-            // Intersection: only yield entry points present in ALL collectors
-            if ($this->collectors === []) {
-                return;
-            }
+            yield from $this->collectUnion($basePath);
+            return;
+        }
 
-            // Collect all entry points from each collector once and cache by identifier
-            /** @var list<array<string, EntryPoint>> $collectorResults */
-            $collectorResults = [];
-            foreach ($this->collectors as $collector) {
-                $results = [];
-                foreach ($collector->collect($basePath) as $entryPoint) {
-                    $results[$entryPoint->getIdentifier()] = $entryPoint;
-                }
-                $collectorResults[] = $results;
-            }
+        yield from $this->collectIntersection($basePath);
+    }
 
-            // Find intersection: entry points present in all collectors
-            $first = $collectorResults[0];
-            foreach ($first as $id => $entryPoint) {
-                $inAll = true;
-                for ($i = 1; $i < count($collectorResults); $i++) {
-                    if (!isset($collectorResults[$i][$id])) {
-                        $inAll = false;
-                        break;
-                    }
+    /**
+     * @return iterable<EntryPoint>
+     */
+    private function collectUnion(string $basePath): iterable
+    {
+        $seen = [];
+        foreach ($this->collectors as $collector) {
+            foreach ($collector->collect($basePath) as $entryPoint) {
+                $id = $entryPoint->getIdentifier();
+                if (isset($seen[$id])) {
+                    continue;
                 }
 
-                if ($inAll) {
-                    yield $entryPoint;
-                }
+                $seen[$id] = true;
+                yield $entryPoint;
             }
         }
+    }
+
+    /**
+     * @return iterable<EntryPoint>
+     */
+    private function collectIntersection(string $basePath): iterable
+    {
+        if ($this->collectors === []) {
+            return;
+        }
+
+        // Collect all entry points from each collector once and cache by identifier
+        /** @var list<array<string, EntryPoint>> $collectorResults */
+        $collectorResults = [];
+        foreach ($this->collectors as $collector) {
+            $results = [];
+            foreach ($collector->collect($basePath) as $entryPoint) {
+                $results[$entryPoint->getIdentifier()] = $entryPoint;
+            }
+            $collectorResults[] = $results;
+        }
+
+        // Find intersection: entry points present in all collectors
+        $first = $collectorResults[0];
+        foreach ($first as $id => $entryPoint) {
+            if (!$this->isPresentInAll($id, $collectorResults)) {
+                continue;
+            }
+
+            yield $entryPoint;
+        }
+    }
+
+    /**
+     * @param list<array<string, EntryPoint>> $collectorResults
+     */
+    private function isPresentInAll(string $id, array $collectorResults): bool
+    {
+        for ($i = 1; $i < count($collectorResults); $i++) {
+            if (!isset($collectorResults[$i][$id])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

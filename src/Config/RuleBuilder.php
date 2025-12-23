@@ -19,7 +19,6 @@ final class RuleBuilder
     private ?string $message = null;
 
     public function __construct(
-        private readonly GuardrailConfig $parent,
         private readonly string $name,
     ) {}
 
@@ -70,24 +69,6 @@ final class RuleBuilder
     {
         $this->message = $message;
         return $this;
-    }
-
-    /**
-     * Start a new rule.
-     */
-    public function rule(string $name): RuleBuilder
-    {
-        return $this->parent->rule($name);
-    }
-
-    /**
-     * Build the configuration.
-     *
-     * @return list<Rule>
-     */
-    public function build(): array
-    {
-        return $this->parent->build();
     }
 
     public function buildRule(): Rule

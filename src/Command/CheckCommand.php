@@ -79,7 +79,7 @@ final class CheckCommand extends Command
             $rules = array_values(array_filter($rules, static fn(\Guardrail\Config\Rule $rule) => in_array(
                 $rule->name,
                 $ruleFilter,
-                true,
+                strict: true,
             )));
 
             if ($rules === []) {

@@ -41,7 +41,7 @@ final class ConsoleReporter implements ReporterInterface
     {
         $this->output->writeln('');
         $this->output->writeln(sprintf('<comment>Rule: %s</comment>', $result->rule->name));
-        $this->output->writeln(str_repeat('━', 60));
+        $this->output->writeln(str_repeat('━', times: 60));
 
         $violations = $result->getViolations();
 
@@ -91,9 +91,9 @@ final class ConsoleReporter implements ReporterInterface
      */
     private function reportSummary(array $results, int $totalViolations, int $totalPassed, int $totalEntryPoints): void
     {
-        $this->output->writeln(str_repeat('━', 60));
+        $this->output->writeln(str_repeat('━', times: 60));
         $this->output->writeln('<comment>Summary</comment>');
-        $this->output->writeln(str_repeat('━', 60));
+        $this->output->writeln(str_repeat('━', times: 60));
 
         $rulesPassed = count(array_filter($results, static fn(RuleResult $r) => !$r->hasViolations()));
         $rulesFailed = count($results) - $rulesPassed;
@@ -116,8 +116,9 @@ final class ConsoleReporter implements ReporterInterface
 
         if ($totalViolations > 0) {
             $this->output->writeln(sprintf('<error>✗ %d violation(s) found</error>', $totalViolations));
-        } else {
-            $this->output->writeln('<info>✓ All checks passed</info>');
+            return;
         }
+
+        $this->output->writeln('<info>✓ All checks passed</info>');
     }
 }

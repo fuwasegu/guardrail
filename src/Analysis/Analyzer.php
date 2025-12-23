@@ -40,7 +40,7 @@ final class Analyzer
     private function analyzeRule(Rule $rule, CallGraph $callGraph): RuleResult
     {
         // Use false for preserve_keys to avoid key collisions from yield from
-        $entryPoints = iterator_to_array($rule->entryPointCollector->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($rule->entryPointCollector->collect($this->basePath), preserve_keys: false);
         $results = [];
 
         foreach ($entryPoints as $entryPoint) {

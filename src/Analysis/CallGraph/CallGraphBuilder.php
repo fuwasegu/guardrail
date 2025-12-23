@@ -28,10 +28,14 @@ use Symfony\Component\Finder\Finder;
 final class CallGraphBuilder
 {
     private CallGraph $callGraph;
+    private ClassHierarchy $classHierarchy;
+    private TypeRegistry $typeRegistry;
 
     public function __construct()
     {
         $this->callGraph = new CallGraph();
+        $this->classHierarchy = new ClassHierarchy();
+        $this->typeRegistry = new TypeRegistry($this->classHierarchy);
     }
 
     public function build(string $basePath): CallGraph
@@ -78,7 +82,7 @@ final class CallGraphBuilder
      */
     private function collectDefinitions(array $ast): void
     {
-        $visitor = new DefinitionCollectorVisitor($this->callGraph);
+        $visitor = new DefinitionCollectorVisitor($this->classHierarchy, $this->typeRegistry);
         $traverser = new NodeTraverser();
         $traverser->addVisitor($visitor);
         $traverser->traverse($ast);
@@ -91,7 +95,7 @@ final class CallGraphBuilder
      */
     private function analyzeCalls(array $ast): void
     {
-        $visitor = new CallAnalyzerVisitor($this->callGraph);
+        $visitor = new CallAnalyzerVisitor($this->callGraph, $this->classHierarchy, $this->typeRegistry);
         $traverser = new NodeTraverser();
         $traverser->addVisitor($visitor);
         $traverser->traverse($ast);
@@ -108,7 +112,8 @@ final class DefinitionCollectorVisitor extends NodeVisitorAbstract
     use NameResolverTrait;
 
     public function __construct(
-        private readonly CallGraph $callGraph,
+        private readonly ClassHierarchy $classHierarchy,
+        private readonly TypeRegistry $typeRegistry,
     ) {}
 
     public function enterNode(Node $node): ?int
@@ -166,11 +171,11 @@ final class DefinitionCollectorVisitor extends NodeVisitorAbstract
         $currentClass = $this->currentClass;
 
         // Mark as trait for later lookup
-        $this->callGraph->markAsTrait($currentClass);
+        $this->classHierarchy->markAsTrait($currentClass);
 
         // Record method definitions in trait
         foreach ($node->getMethods() as $method) {
-            $this->callGraph->addMethodDefinition($currentClass, $method->name->toString());
+            $this->classHierarchy->addMethodDefinition($currentClass, $method->name->toString());
         }
 
         // Collect property types in trait
@@ -179,7 +184,7 @@ final class DefinitionCollectorVisitor extends NodeVisitorAbstract
             if ($type !== null) {
                 foreach ($property->props as $prop) {
                     $propName = $prop->name->toString();
-                    $this->callGraph->addPropertyType($currentClass, $propName, $type);
+                    $this->typeRegistry->addPropertyType($currentClass, $propName, $type);
                 }
             }
         }
@@ -204,7 +209,7 @@ final class DefinitionCollectorVisitor extends NodeVisitorAbstract
         if ($node->extends !== null) {
             $parentClass = $this->resolveName($node->extends);
         }
-        $this->callGraph->setClassParent($currentClass, $parentClass);
+        $this->classHierarchy->setClassParent($currentClass, $parentClass);
 
         // Record used traits
         $traits = [];
@@ -213,7 +218,7 @@ final class DefinitionCollectorVisitor extends NodeVisitorAbstract
                 $traits[] = $this->resolveName($trait);
             }
         }
-        $this->callGraph->setClassTraits($currentClass, $traits);
+        $this->classHierarchy->setClassTraits($currentClass, $traits);
 
         // Collect property types
         foreach ($node->getProperties() as $property) {
@@ -221,14 +226,14 @@ final class DefinitionCollectorVisitor extends NodeVisitorAbstract
             if ($type !== null) {
                 foreach ($property->props as $prop) {
                     $propName = $prop->name->toString();
-                    $this->callGraph->addPropertyType($currentClass, $propName, $type);
+                    $this->typeRegistry->addPropertyType($currentClass, $propName, $type);
                 }
             }
         }
 
         // Record method definitions and collect constructor promoted properties
         foreach ($node->getMethods() as $method) {
-            $this->callGraph->addMethodDefinition($currentClass, $method->name->toString());
+            $this->classHierarchy->addMethodDefinition($currentClass, $method->name->toString());
 
             // Collect constructor promoted properties
             if ($method->name->toString() === '__construct') {
@@ -240,7 +245,7 @@ final class DefinitionCollectorVisitor extends NodeVisitorAbstract
                     $paramName = is_string($param->var->name) ? $param->var->name : null;
                     $type = $this->resolveType($param->type);
                     if ($paramName !== null && $type !== null) {
-                        $this->callGraph->addPropertyType($currentClass, $paramName, $type);
+                        $this->typeRegistry->addPropertyType($currentClass, $paramName, $type);
                     }
                 }
             }
@@ -264,6 +269,8 @@ final class CallAnalyzerVisitor extends NodeVisitorAbstract
 
     public function __construct(
         private readonly CallGraph $callGraph,
+        private readonly ClassHierarchy $classHierarchy,
+        private readonly TypeRegistry $typeRegistry,
     ) {}
 
     public function enterNode(Node $node): ?int
@@ -384,7 +391,7 @@ final class CallAnalyzerVisitor extends NodeVisitorAbstract
 
         // For $this->method() calls, resolve where the method is actually defined
         if ($calleeClass === $currentClass) {
-            $resolvedClass = $this->callGraph->resolveMethodClass($currentClass, $methodName);
+            $resolvedClass = $this->classHierarchy->resolveMethodClass($currentClass, $methodName);
             if ($resolvedClass !== null) {
                 $calleeClass = $resolvedClass;
             }
@@ -447,9 +454,9 @@ final class CallAnalyzerVisitor extends NodeVisitorAbstract
             ) {
                 $propertyName = $var->name->toString();
 
-                // Look up property type from CallGraph (works for traits too)
+                // Look up property type from TypeRegistry (works for traits too)
                 if ($currentClass !== null) {
-                    $type = $this->callGraph->resolvePropertyType($currentClass, $propertyName);
+                    $type = $this->typeRegistry->resolvePropertyType($currentClass, $propertyName);
                     if ($type !== null) {
                         return $type;
                     }

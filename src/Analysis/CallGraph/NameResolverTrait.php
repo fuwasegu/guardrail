@@ -57,7 +57,7 @@ trait NameResolverTrait
 
         $nameStr = $name->toString();
 
-        if (in_array($nameStr, ['self', 'static'], true)) {
+        if (in_array($nameStr, ['self', 'static'], strict: true)) {
             return $this->currentClass ?? $nameStr;
         }
 
@@ -65,10 +65,10 @@ trait NameResolverTrait
         if (isset($this->useStatements[$firstPart])) {
             if (count($name->getParts()) === 1) {
                 return $this->useStatements[$firstPart];
-            } else {
-                $remaining = array_slice($name->getParts(), 1);
-                return $this->useStatements[$firstPart] . '\\' . implode('\\', $remaining);
             }
+
+            $remaining = array_slice($name->getParts(), offset: 1);
+            return $this->useStatements[$firstPart] . '\\' . implode('\\', $remaining);
         }
 
         if ($this->currentNamespace !== null) {

@@ -37,18 +37,20 @@ composer require --dev fuwasegu/guardrail
 
 use App\Auth\Authorizer;
 use Guardrail\Config\GuardrailConfig;
+use Guardrail\Config\RuleBuilder;
 
 return GuardrailConfig::create()
-    ->rule('authorization')
-        ->entryPoints()
+    ->rule('authorization', function (RuleBuilder $rule): void {
+        $rule->entryPoints()
             ->namespace('App\\UseCase\\*')
-            ->method('execute')
-        ->mustCallAnyOf([
+            ->method('execute');
+        $rule->mustCallAnyOf([
             [Authorizer::class, 'authorize'],
             [Authorizer::class, 'authorizeOrFail'],
         ])
-        ->atLeastOnce()
-        ->message('All UseCases must call authorize()')
+            ->atLeastOnce()
+            ->message('All UseCases must call authorize()');
+    })
     ->build();
 ```
 
@@ -102,47 +104,51 @@ Entry points: 3 total, 2 passed, 1 failed
 ### Entry Point Collectors
 
 ```php
-// Namespace patterns
-->entryPoints()
-    ->namespace('App\\UseCase\\*')       // Single segment wildcard
-    ->namespace('App\\**\\Admin\\*')     // Recursive wildcard
+->rule('example', function (RuleBuilder $rule): void {
+    // Namespace patterns
+    $rule->entryPoints()
+        ->namespace('App\\UseCase\\*')       // Single segment wildcard
+        ->namespace('App\\**\\Admin\\*');    // Recursive wildcard
 
-// Method filters
-->entryPoints()
-    ->namespace('App\\UseCase\\*')
-    ->method('execute')                  // Specific methods only
-    ->publicMethods()                    // Public methods only
+    // Method filters
+    $rule->entryPoints()
+        ->namespace('App\\UseCase\\*')
+        ->method('execute')                  // Specific methods only
+        ->publicMethods();                   // Public methods only
 
-// Combining patterns
-->entryPoints()
-    ->namespace('App\\UseCase\\*')
-    ->or()
-    ->namespace('App\\Service\\*')
-    ->excluding()
-    ->namespace('App\\Service\\Internal\\*')
+    // Combining patterns
+    $rule->entryPoints()
+        ->namespace('App\\UseCase\\*')
+        ->or()
+        ->namespace('App\\Service\\*')
+        ->excluding()
+        ->namespace('App\\Service\\Internal\\*');
+
+    $rule->mustCall([SomeClass::class, 'method']);
+})
 ```
 
 ### Required Calls
 
 ```php
 // Single method
-->mustCall([Authorizer::class, 'authorize'])
+$rule->mustCall([Authorizer::class, 'authorize']);
 
 // Any of multiple methods
-->mustCallAnyOf([
+$rule->mustCallAnyOf([
     [Authorizer::class, 'authorize'],
     [Authorizer::class, 'authorizeOrFail'],
-])
+]);
 ```
 
 ### Path Conditions
 
 ```php
 // Called at least once anywhere (default)
-->atLeastOnce()
+$rule->mustCall([...])->atLeastOnce();
 
 // Must be called on all branches (planned for future)
-->onAllPaths()
+$rule->mustCall([...])->onAllPaths();
 ```
 
 ## Configuration Examples
@@ -153,15 +159,17 @@ Entry points: 3 total, 2 passed, 1 failed
 <?php
 use App\Auth\Authorizer;
 use Guardrail\Config\GuardrailConfig;
+use Guardrail\Config\RuleBuilder;
 
 return GuardrailConfig::create()
-    ->rule('authorization')
-        ->entryPoints()
+    ->rule('authorization', function (RuleBuilder $rule): void {
+        $rule->entryPoints()
             ->namespace('App\\UseCase\\*')
-            ->method('execute')
-        ->mustCall([Authorizer::class, 'authorize'])
-        ->atLeastOnce()
-        ->message('All UseCases must call authorize()')
+            ->method('execute');
+        $rule->mustCall([Authorizer::class, 'authorize'])
+            ->atLeastOnce()
+            ->message('All UseCases must call authorize()');
+    })
     ->build();
 ```
 
@@ -171,15 +179,17 @@ return GuardrailConfig::create()
 <?php
 use App\Logging\AuditLogger;
 use Guardrail\Config\GuardrailConfig;
+use Guardrail\Config\RuleBuilder;
 
 return GuardrailConfig::create()
-    ->rule('audit-logging')
-        ->entryPoints()
+    ->rule('audit-logging', function (RuleBuilder $rule): void {
+        $rule->entryPoints()
             ->namespace('App\\UseCase\\Admin\\*')
-            ->method('execute')
-        ->mustCall([AuditLogger::class, 'log'])
-        ->atLeastOnce()
-        ->message('Admin operations must be audit logged')
+            ->method('execute');
+        $rule->mustCall([AuditLogger::class, 'log'])
+            ->atLeastOnce()
+            ->message('Admin operations must be audit logged');
+    })
     ->build();
 ```
 
@@ -190,23 +200,23 @@ return GuardrailConfig::create()
 use App\Auth\Authorizer;
 use App\Logging\AuditLogger;
 use Guardrail\Config\GuardrailConfig;
+use Guardrail\Config\RuleBuilder;
 
 return GuardrailConfig::create()
-
-    ->rule('authorization')
-        ->entryPoints()
+    ->rule('authorization', function (RuleBuilder $rule): void {
+        $rule->entryPoints()
             ->namespace('App\\UseCase\\*')
-            ->method('execute')
-        ->mustCall([Authorizer::class, 'authorize'])
-        ->atLeastOnce()
-
-    ->rule('audit')
-        ->entryPoints()
+            ->method('execute');
+        $rule->mustCall([Authorizer::class, 'authorize'])
+            ->atLeastOnce();
+    })
+    ->rule('audit', function (RuleBuilder $rule): void {
+        $rule->entryPoints()
             ->namespace('App\\UseCase\\Admin\\*')
-            ->method('execute')
-        ->mustCall([AuditLogger::class, 'log'])
-        ->atLeastOnce()
-
+            ->method('execute');
+        $rule->mustCall([AuditLogger::class, 'log'])
+            ->atLeastOnce();
+    })
     ->build();
 ```
 
