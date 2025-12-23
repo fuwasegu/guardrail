@@ -8,6 +8,7 @@ use Guardrail\Collector\CollectorInterface;
 use Guardrail\Collector\CompositeCollector;
 use Guardrail\Collector\ExcludingCollector;
 use Guardrail\Collector\NamespaceCollector;
+use Guardrail\Collector\RouteCollector;
 
 /**
  * Fluent builder for configuring entry point collectors.
@@ -39,6 +40,26 @@ final class EntryPointBuilder
 
         $this->collectors[] = $collector;
         $this->currentNamespaceCollector = $collector;
+
+        return $this;
+    }
+
+    /**
+     * Add entry points from a Laravel route file.
+     *
+     * @param string $routeFile Path to route file relative to project root (e.g., 'routes/api.php')
+     */
+    public function route(string $routeFile): self
+    {
+        $collector = (new RouteCollector())->routeFile($routeFile);
+
+        if ($this->inExcluding) {
+            $this->exclusions[] = $collector;
+            return $this;
+        }
+
+        $this->collectors[] = $collector;
+        $this->currentNamespaceCollector = null;
 
         return $this;
     }

@@ -1,14 +1,16 @@
 {
     "name": "fuwasegu/guardrail",
-    "description": "PHP Call Chain Assertion Tool - Ensure required methods are called in execution paths",
+    "description": "Laravel static analysis tool - Verify API routes call required methods (authorization, logging, etc.)",
     "type": "library",
     "license": "MIT",
     "keywords": [
+        "laravel",
         "static-analysis",
-        "linter",
         "call-graph",
         "authorization",
-        "php"
+        "security",
+        "api",
+        "routes"
     ],
     "authors": [
         {
