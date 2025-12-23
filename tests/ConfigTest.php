@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Guardrail\Tests;
 
 use Guardrail\Config\GuardrailConfig;
-use Guardrail\Config\MethodReference;
 use Guardrail\Config\PathCondition;
 use Guardrail\Config\RuleBuilder;
 use PHPUnit\Framework\TestCase;
@@ -15,7 +14,7 @@ final class ConfigTest extends TestCase
     public function testBasicRuleCreation(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('test-rule', function (RuleBuilder $rule): void {
+            ->rule('test-rule', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\*');
                 $rule->mustCall([self::class, 'dummyMethod']);
             })
@@ -30,11 +29,11 @@ final class ConfigTest extends TestCase
     public function testMultipleRules(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('rule-1', function (RuleBuilder $rule): void {
+            ->rule('rule-1', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\Service\*');
                 $rule->mustCall([self::class, 'methodA']);
             })
-            ->rule('rule-2', function (RuleBuilder $rule): void {
+            ->rule('rule-2', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\*');
                 $rule->mustCall([self::class, 'methodB']);
             })
@@ -48,7 +47,7 @@ final class ConfigTest extends TestCase
     public function testMustCallAnyOf(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('test', function (RuleBuilder $rule): void {
+            ->rule('test', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\*');
                 $rule->mustCallAnyOf([
                     [self::class, 'methodA'],
@@ -63,7 +62,7 @@ final class ConfigTest extends TestCase
     public function testCustomMessage(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('test', function (RuleBuilder $rule): void {
+            ->rule('test', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\*');
                 $rule->mustCall([self::class, 'method'])->message('Custom error message');
             })
@@ -76,7 +75,7 @@ final class ConfigTest extends TestCase
     public function testDefaultDisplayMessage(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('test', function (RuleBuilder $rule): void {
+            ->rule('test', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\*');
                 $rule->mustCall([self::class, 'authorize']);
             })
@@ -90,7 +89,7 @@ final class ConfigTest extends TestCase
     public function testEntryPointWithMethodFilter(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('test', function (RuleBuilder $rule): void {
+            ->rule('test', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\*')->method('execute', 'handle');
                 $rule->mustCall([self::class, 'method']);
             })
@@ -102,7 +101,7 @@ final class ConfigTest extends TestCase
     public function testEntryPointWithPublicMethods(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('test', function (RuleBuilder $rule): void {
+            ->rule('test', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\*')->publicMethods();
                 $rule->mustCall([self::class, 'method']);
             })
@@ -114,7 +113,7 @@ final class ConfigTest extends TestCase
     public function testEntryPointWithExclusion(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('test', function (RuleBuilder $rule): void {
+            ->rule('test', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\*')->excluding()->namespace('App\Internal\*');
                 $rule->mustCall([self::class, 'method']);
             })
@@ -126,7 +125,7 @@ final class ConfigTest extends TestCase
     public function testEntryPointWithOrCondition(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('test', function (RuleBuilder $rule): void {
+            ->rule('test', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\*')->or()->namespace('App\Service\*');
                 $rule->mustCall([self::class, 'method']);
             })
@@ -141,7 +140,7 @@ final class ConfigTest extends TestCase
         $this->expectExceptionMessage('must have entry points');
 
         GuardrailConfig::create()
-            ->rule('test', function (RuleBuilder $rule): void {
+            ->rule('test', static function (RuleBuilder $rule): void {
                 $rule->mustCall([self::class, 'method']);
             })
             ->build();
@@ -153,7 +152,7 @@ final class ConfigTest extends TestCase
         $this->expectExceptionMessage('must have at least one required call');
 
         GuardrailConfig::create()
-            ->rule('test', function (RuleBuilder $rule): void {
+            ->rule('test', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\*');
             })
             ->build();

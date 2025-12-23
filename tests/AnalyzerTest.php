@@ -21,7 +21,7 @@ final class AnalyzerTest extends TestCase
     public function testAnalyzeWithPassingRule(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('authorization', function (RuleBuilder $rule): void {
+            ->rule('authorization', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\CreateUserUseCase');
                 $rule->mustCall(['App\Auth\Authorizer', 'authorize']);
             })
@@ -38,7 +38,7 @@ final class AnalyzerTest extends TestCase
     public function testAnalyzeWithFailingRule(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('authorization', function (RuleBuilder $rule): void {
+            ->rule('authorization', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\DeleteUserUseCase');
                 $rule->mustCall(['App\Auth\Authorizer', 'authorize']);
             })
@@ -55,7 +55,7 @@ final class AnalyzerTest extends TestCase
     public function testAnalyzeWithMixedResults(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('authorization', function (RuleBuilder $rule): void {
+            ->rule('authorization', static function (RuleBuilder $rule): void {
                 $rule
                     ->entryPoints()
                     ->namespace('App\UseCase\*UseCase')
@@ -78,11 +78,11 @@ final class AnalyzerTest extends TestCase
     public function testAnalyzeMultipleRules(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('rule-1', function (RuleBuilder $rule): void {
+            ->rule('rule-1', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\CreateUserUseCase');
                 $rule->mustCall(['App\Auth\Authorizer', 'authorize']);
             })
-            ->rule('rule-2', function (RuleBuilder $rule): void {
+            ->rule('rule-2', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\DeleteUserUseCase');
                 $rule->mustCall(['App\Auth\Authorizer', 'authorize']);
             })
@@ -98,7 +98,7 @@ final class AnalyzerTest extends TestCase
     public function testAnalyzeWithMustCallAnyOf(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('authorization', function (RuleBuilder $rule): void {
+            ->rule('authorization', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\CreateUserUseCase');
                 $rule->mustCallAnyOf([
                     ['App\Auth\Authorizer', 'authorize'],
@@ -116,7 +116,7 @@ final class AnalyzerTest extends TestCase
     public function testAnalyzeReturnsCallPath(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('authorization', function (RuleBuilder $rule): void {
+            ->rule('authorization', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\CreateUserUseCase');
                 $rule->mustCall(['App\Auth\Authorizer', 'authorize']);
             })
@@ -133,7 +133,7 @@ final class AnalyzerTest extends TestCase
     public function testAnalyzeViolationHasMessage(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('authorization', function (RuleBuilder $rule): void {
+            ->rule('authorization', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\DeleteUserUseCase');
                 $rule->mustCall(['App\Auth\Authorizer', 'authorize'])->message('Must call authorize!');
             })
@@ -149,7 +149,7 @@ final class AnalyzerTest extends TestCase
     public function testAnalyzeWithIndirectCall(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('authorization', function (RuleBuilder $rule): void {
+            ->rule('authorization', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\EdgeCases\IndirectCallUseCase');
                 $rule->mustCall(['App\Auth\Authorizer', 'authorize']);
             })
@@ -163,7 +163,7 @@ final class AnalyzerTest extends TestCase
     public function testAnalyzeWithParentClassMethod(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('authorization', function (RuleBuilder $rule): void {
+            ->rule('authorization', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\EdgeCases\ParentCallUseCase');
                 $rule->mustCall(['App\Auth\Authorizer', 'authorize']);
             })
@@ -177,7 +177,7 @@ final class AnalyzerTest extends TestCase
     public function testAnalyzeWithTraitMethod(): void
     {
         $rules = GuardrailConfig::create()
-            ->rule('authorization', function (RuleBuilder $rule): void {
+            ->rule('authorization', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\EdgeCases\TraitCallUseCase');
                 $rule->mustCall(['App\Auth\Authorizer', 'authorize']);
             })

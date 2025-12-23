@@ -4,12 +4,12 @@
 php-version = "8.2"
 
 [source]
-paths = ["src", "bin"]
+paths = ["src", "bin", "tests"]
 includes = ["vendor"]
 extensions = ["php"]
 
 [linter]
-excludes = ["vendor"]
+excludes = ["vendor", "tests/Fixtures"]
 
 [linter.rules]
 # AST visitor classes are inherently complex due to instanceof checks
@@ -21,4 +21,4 @@ halstead = { enabled = false }
 prefer-early-continue = { enabled = false }
 
 [formatter]
-excludes = ["vendor"]
+excludes = ["vendor", "tests/Fixtures"]

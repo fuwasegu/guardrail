@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\UserController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\UserController;
 use App\Modules\Billing\Http\Controllers\InvoiceController;
 use Illuminate\Support\Facades\Route;
 
@@ -23,8 +23,10 @@ Route::prefix('orders')->group(function () {
 });
 
 // Module routes (modular monolith style)
-Route::prefix('billing')->middleware(['auth:api'])->group(function () {
-    Route::get('/invoices', [InvoiceController::class, 'index']);
-    Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
-    Route::post('/invoices', [InvoiceController::class, 'create']);
-});
+Route::prefix('billing')
+    ->middleware(['auth:api'])
+    ->group(function () {
+        Route::get('/invoices', [InvoiceController::class, 'index']);
+        Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
+        Route::post('/invoices', [InvoiceController::class, 'create']);
+    });

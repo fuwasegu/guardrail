@@ -26,23 +26,23 @@ final class CollectorTest extends TestCase
     public function testNamespaceCollectorWithExactMatch(): void
     {
         $collector = (new NamespaceCollector())->namespace('App\UseCase\CreateUserUseCase');
-        $entryPoints = iterator_to_array($collector->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($collector->collect($this->basePath), preserve_keys: false);
 
         $this->assertNotEmpty($entryPoints);
         $this->assertContainsOnlyInstancesOf(EntryPoint::class, $entryPoints);
 
-        $identifiers = array_map(fn($e) => $e->getIdentifier(), $entryPoints);
+        $identifiers = array_map(static fn($e) => $e->getIdentifier(), $entryPoints);
         $this->assertContains('App\UseCase\CreateUserUseCase::execute', $identifiers);
     }
 
     public function testNamespaceCollectorWithWildcard(): void
     {
         $collector = (new NamespaceCollector())->namespace('App\UseCase\*UseCase');
-        $entryPoints = iterator_to_array($collector->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($collector->collect($this->basePath), preserve_keys: false);
 
         $this->assertNotEmpty($entryPoints);
 
-        $identifiers = array_map(fn($e) => $e->getIdentifier(), $entryPoints);
+        $identifiers = array_map(static fn($e) => $e->getIdentifier(), $entryPoints);
         $this->assertContains('App\UseCase\CreateUserUseCase::execute', $identifiers);
         $this->assertContains('App\UseCase\DeleteUserUseCase::execute', $identifiers);
     }
@@ -50,16 +50,16 @@ final class CollectorTest extends TestCase
     public function testNamespaceCollectorWithDoubleWildcard(): void
     {
         $collector = (new NamespaceCollector())->namespace('App\UseCase\**');
-        $entryPoints = iterator_to_array($collector->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($collector->collect($this->basePath), preserve_keys: false);
 
         $this->assertNotEmpty($entryPoints);
 
-        $identifiers = array_map(fn($e) => $e->getIdentifier(), $entryPoints);
+        $identifiers = array_map(static fn($e) => $e->getIdentifier(), $entryPoints);
 
         // Should include nested namespaces
         $this->assertContains('App\UseCase\CreateUserUseCase::execute', $identifiers);
         $this->assertTrue(
-            count(array_filter($identifiers, fn($id) => str_contains($id, 'EdgeCases'))) > 0,
+            count(array_filter($identifiers, static fn($id) => str_contains($id, 'EdgeCases'))) > 0,
             'Should include EdgeCases namespace',
         );
     }
@@ -69,9 +69,9 @@ final class CollectorTest extends TestCase
         $collector = (new NamespaceCollector())
             ->namespace('App\UseCase\*')
             ->method('execute');
-        $entryPoints = iterator_to_array($collector->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($collector->collect($this->basePath), preserve_keys: false);
 
-        $identifiers = array_map(fn($e) => $e->getIdentifier(), $entryPoints);
+        $identifiers = array_map(static fn($e) => $e->getIdentifier(), $entryPoints);
 
         foreach ($identifiers as $id) {
             $this->assertStringEndsWith('::execute', $id);
@@ -83,9 +83,9 @@ final class CollectorTest extends TestCase
         $collector = (new NamespaceCollector())
             ->namespace('App\**')
             ->method('execute', 'authorize');
-        $entryPoints = iterator_to_array($collector->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($collector->collect($this->basePath), preserve_keys: false);
 
-        $identifiers = array_map(fn($e) => $e->getIdentifier(), $entryPoints);
+        $identifiers = array_map(static fn($e) => $e->getIdentifier(), $entryPoints);
 
         foreach ($identifiers as $id) {
             $this->assertTrue(
@@ -100,22 +100,22 @@ final class CollectorTest extends TestCase
         $collector = (new NamespaceCollector())
             ->namespace('App\UseCase\CreateUserUseCase')
             ->publicMethods();
-        $entryPoints = iterator_to_array($collector->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($collector->collect($this->basePath), preserve_keys: false);
 
         $this->assertNotEmpty($entryPoints);
 
         // All collected methods should be public (can't easily verify visibility here,
         // but we can check that some methods are collected)
-        $identifiers = array_map(fn($e) => $e->getIdentifier(), $entryPoints);
+        $identifiers = array_map(static fn($e) => $e->getIdentifier(), $entryPoints);
         $this->assertContains('App\UseCase\CreateUserUseCase::execute', $identifiers);
     }
 
     public function testNamespaceCollectorSkipsMagicMethods(): void
     {
         $collector = (new NamespaceCollector())->namespace('App\UseCase\CreateUserUseCase');
-        $entryPoints = iterator_to_array($collector->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($collector->collect($this->basePath), preserve_keys: false);
 
-        $identifiers = array_map(fn($e) => $e->getIdentifier(), $entryPoints);
+        $identifiers = array_map(static fn($e) => $e->getIdentifier(), $entryPoints);
 
         // Should not include __construct
         foreach ($identifiers as $id) {
@@ -128,9 +128,9 @@ final class CollectorTest extends TestCase
         $collector = (new NamespaceCollector())
             ->namespace('App\UseCase\CreateUserUseCase')
             ->namespace('App\UseCase\DeleteUserUseCase');
-        $entryPoints = iterator_to_array($collector->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($collector->collect($this->basePath), preserve_keys: false);
 
-        $identifiers = array_map(fn($e) => $e->getIdentifier(), $entryPoints);
+        $identifiers = array_map(static fn($e) => $e->getIdentifier(), $entryPoints);
         $this->assertContains('App\UseCase\CreateUserUseCase::execute', $identifiers);
         $this->assertContains('App\UseCase\DeleteUserUseCase::execute', $identifiers);
     }
@@ -145,9 +145,9 @@ final class CollectorTest extends TestCase
         $collector2 = (new NamespaceCollector())->namespace('App\UseCase\DeleteUserUseCase');
 
         $composite = CompositeCollector::or($collector1, $collector2);
-        $entryPoints = iterator_to_array($composite->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($composite->collect($this->basePath), preserve_keys: false);
 
-        $identifiers = array_map(fn($e) => $e->getIdentifier(), $entryPoints);
+        $identifiers = array_map(static fn($e) => $e->getIdentifier(), $entryPoints);
         $this->assertContains('App\UseCase\CreateUserUseCase::execute', $identifiers);
         $this->assertContains('App\UseCase\DeleteUserUseCase::execute', $identifiers);
     }
@@ -158,10 +158,13 @@ final class CollectorTest extends TestCase
         $collector2 = (new NamespaceCollector())->namespace('App\UseCase\CreateUserUseCase');
 
         $composite = CompositeCollector::or($collector1, $collector2);
-        $entryPoints = iterator_to_array($composite->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($composite->collect($this->basePath), preserve_keys: false);
 
-        $identifiers = array_map(fn($e) => $e->getIdentifier(), $entryPoints);
-        $executeCount = count(array_filter($identifiers, fn($id) => $id === 'App\UseCase\CreateUserUseCase::execute'));
+        $identifiers = array_map(static fn($e) => $e->getIdentifier(), $entryPoints);
+        $executeCount = count(array_filter(
+            $identifiers,
+            static fn($id) => $id === 'App\UseCase\CreateUserUseCase::execute',
+        ));
 
         $this->assertSame(1, $executeCount, 'Should deduplicate identical entry points');
     }
@@ -173,9 +176,9 @@ final class CollectorTest extends TestCase
         $collector2 = (new NamespaceCollector())->namespace('App\UseCase\*');
 
         $composite = CompositeCollector::and($collector1, $collector2);
-        $entryPoints = iterator_to_array($composite->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($composite->collect($this->basePath), preserve_keys: false);
 
-        $identifiers = array_map(fn($e) => $e->getIdentifier(), $entryPoints);
+        $identifiers = array_map(static fn($e) => $e->getIdentifier(), $entryPoints);
         $this->assertContains('App\UseCase\CreateUserUseCase::execute', $identifiers);
     }
 
@@ -185,7 +188,7 @@ final class CollectorTest extends TestCase
         $collector2 = (new NamespaceCollector())->namespace('App\UseCase\DeleteUserUseCase');
 
         $composite = CompositeCollector::and($collector1, $collector2);
-        $entryPoints = iterator_to_array($composite->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($composite->collect($this->basePath), preserve_keys: false);
 
         // Should be empty since there's no overlap
         $this->assertEmpty($entryPoints);
@@ -194,7 +197,7 @@ final class CollectorTest extends TestCase
     public function testCompositeCollectorAndWithEmptyCollectors(): void
     {
         $composite = CompositeCollector::and();
-        $entryPoints = iterator_to_array($composite->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($composite->collect($this->basePath), preserve_keys: false);
 
         $this->assertEmpty($entryPoints);
     }
@@ -209,9 +212,9 @@ final class CollectorTest extends TestCase
         $exclusion = (new NamespaceCollector())->namespace('App\UseCase\DeleteUserUseCase');
 
         $excluding = new ExcludingCollector($base, $exclusion);
-        $entryPoints = iterator_to_array($excluding->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($excluding->collect($this->basePath), preserve_keys: false);
 
-        $identifiers = array_map(fn($e) => $e->getIdentifier(), $entryPoints);
+        $identifiers = array_map(static fn($e) => $e->getIdentifier(), $entryPoints);
 
         $this->assertContains('App\UseCase\CreateUserUseCase::execute', $identifiers);
         $this->assertNotContains('App\UseCase\DeleteUserUseCase::execute', $identifiers);
@@ -223,9 +226,9 @@ final class CollectorTest extends TestCase
         $exclusion = (new NamespaceCollector())->namespace('App\NonExistent\*');
 
         $excluding = new ExcludingCollector($base, $exclusion);
-        $entryPoints = iterator_to_array($excluding->collect($this->basePath), false);
+        $entryPoints = iterator_to_array($excluding->collect($this->basePath), preserve_keys: false);
 
-        $identifiers = array_map(fn($e) => $e->getIdentifier(), $entryPoints);
+        $identifiers = array_map(static fn($e) => $e->getIdentifier(), $entryPoints);
         $this->assertContains('App\UseCase\CreateUserUseCase::execute', $identifiers);
     }
 
