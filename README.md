@@ -1,37 +1,37 @@
 # Guardrail
 
-Laravel 向け静的解析ツール。API ルートに登録された Controller が、必ず特定のメソッド（認可、ログ出力など）を呼び出しているかを検証します。
+A static analysis tool for Laravel that verifies API route controllers always call required methods (authorization, logging, etc.).
 
-## 課題
+## The Problem
 
 ```php
-// 認可チェックを忘れた Controller が本番にデプロイされてしまった...
+// A controller without authorize() slipped into production...
 class OrderController
 {
     public function destroy(int $id): JsonResponse
     {
-        // $this->authorizer->authorize() を呼び忘れ！
+        // Forgot to call $this->authorizer->authorize()!
         return response()->json($this->useCase->execute($id));
     }
 }
 ```
 
-従来のアプローチの限界：
-- **コードレビュー**: 人間は見落とす
-- **テスト**: 「メソッドが呼ばれること」のテストは書きにくい
-- **Middleware**: 全ケースには適用できない
+Limitations of traditional approaches:
+- **Code Review**: Humans miss things
+- **Testing**: Hard to write tests for "method must be called"
+- **Middleware**: Can't apply to all cases
 
-Guardrail は **CI で自動的にブロック**します。
+Guardrail **automatically blocks in CI**.
 
-## インストール
+## Installation
 
 ```bash
 composer require --dev because-and/guardrail
 ```
 
-## クイックスタート
+## Quick Start
 
-### 1. 設定ファイルを作成
+### 1. Create Configuration File
 
 ```php
 <?php
@@ -43,25 +43,25 @@ use Guardrail\Config\RuleBuilder;
 
 return GuardrailConfig::create()
     ->rule('api-authorization', function (RuleBuilder $rule): void {
-        // routes/api.php に登録された全 Controller を対象
+        // Target all controllers registered in routes/api.php
         $rule->entryPoints()
             ->route('routes/api.php')
             ->end();
 
         $rule->mustCall([Authorizer::class, 'authorize'])
             ->atLeastOnce()
-            ->message('全ての API エンドポイントで authorize() を呼び出してください');
+            ->message('All API endpoints must call authorize()');
     })
     ->build();
 ```
 
-### 2. 実行
+### 2. Run
 
 ```bash
 ./vendor/bin/guardrail check
 ```
 
-### 出力例
+### Example Output
 
 ```
 Guardrail
@@ -72,7 +72,7 @@ Rule: api-authorization
 
 ✗ App\Http\Controllers\OrderController::destroy
   /app/Http/Controllers/OrderController.php
-  全ての API エンドポイントで authorize() を呼び出してください
+  All API endpoints must call authorize()
   No call to App\Services\Auth\Authorizer::authorize found in call chain
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -84,55 +84,55 @@ Entry points: 15 total, 14 passed, 1 failed
 ✗ 1 violation(s) found
 ```
 
-## 対応するルート定義
+## Supported Route Definitions
 
 ```php
 // routes/api.php
 
-// ✅ 対応: 配列記法
+// ✅ Supported: Array syntax
 Route::get('/users', [UserController::class, 'index']);
 Route::post('/users', [UserController::class, 'store']);
 
-// ✅ 対応: グループ内のルート
+// ✅ Supported: Routes inside groups
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
 });
 
-// ✅ 対応: prefix 付きグループ
+// ✅ Supported: Prefixed groups
 Route::prefix('admin')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard']);
 });
 
-// ❌ 未対応（将来対応予定）
+// ❌ Not yet supported (planned)
 Route::resource('/posts', PostController::class);
 Route::apiResource('/comments', CommentController::class);
 ```
 
-## 設定リファレンス
+## Configuration Reference
 
-### エントリーポイントの指定
+### Specifying Entry Points
 
-#### ルートファイルから（推奨）
-
-```php
-$rule->entryPoints()
-    ->route('routes/api.php')           // API ルート
-    ->route('routes/admin.php')         // 複数ファイル指定可能
-    ->end();
-```
-
-#### 名前空間パターンから
+#### From Route Files (Recommended)
 
 ```php
 $rule->entryPoints()
-    ->namespace('App\\Http\\Controllers\\Api\\*')   // 単一セグメント
-    ->namespace('App\\**\\Controllers\\*')          // 再帰的ワイルドカード
-    ->publicMethods()                               // public メソッドのみ
+    ->route('routes/api.php')           // API routes
+    ->route('routes/admin.php')         // Multiple files supported
     ->end();
 ```
 
-#### 組み合わせ
+#### From Namespace Patterns
+
+```php
+$rule->entryPoints()
+    ->namespace('App\\Http\\Controllers\\Api\\*')   // Single segment wildcard
+    ->namespace('App\\**\\Controllers\\*')          // Recursive wildcard
+    ->publicMethods()                               // Public methods only
+    ->end();
+```
+
+#### Combining Patterns
 
 ```php
 $rule->entryPoints()
@@ -145,13 +145,13 @@ $rule->entryPoints()
     ->end();
 ```
 
-### 必須メソッド呼び出し
+### Required Method Calls
 
 ```php
-// 単一メソッド
+// Single method
 $rule->mustCall([Authorizer::class, 'authorize']);
 
-// 複数メソッドのいずれか
+// Any of multiple methods
 $rule->mustCallAnyOf([
     [Authorizer::class, 'authorize'],
     [Authorizer::class, 'authorizeOrFail'],
@@ -159,19 +159,19 @@ $rule->mustCallAnyOf([
 ]);
 ```
 
-### 呼び出し条件
+### Call Conditions
 
 ```php
-// 1回以上呼び出し（デフォルト）
+// Called at least once (default)
 $rule->mustCall([...])->atLeastOnce();
 
-// 全分岐で呼び出し（将来対応予定）
+// Must be called on all branches (planned)
 $rule->mustCall([...])->onAllPaths();
 ```
 
-## 設定例
+## Configuration Examples
 
-### 認可チェック
+### Authorization Check
 
 ```php
 <?php
@@ -191,12 +191,12 @@ return GuardrailConfig::create()
             [Authorizer::class, 'authorizeOrFail'],
         ])
             ->atLeastOnce()
-            ->message('API エンドポイントには認可チェックが必要です');
+            ->message('API endpoints require authorization check');
     })
     ->build();
 ```
 
-### 監査ログ
+### Audit Logging
 
 ```php
 <?php
@@ -213,12 +213,12 @@ return GuardrailConfig::create()
 
         $rule->mustCall([AuditLogger::class, 'log'])
             ->atLeastOnce()
-            ->message('管理者操作には監査ログが必要です');
+            ->message('Admin operations require audit logging');
     })
     ->build();
 ```
 
-### 複数ルール
+### Multiple Rules
 
 ```php
 <?php
@@ -257,23 +257,23 @@ return GuardrailConfig::create()
     ->build();
 ```
 
-## CLI オプション
+## CLI Options
 
 ```bash
-# 設定ファイルを指定
+# Specify configuration file
 ./vendor/bin/guardrail check --config=path/to/guardrail.config.php
 
-# 対象ディレクトリを指定
+# Specify target directory
 ./vendor/bin/guardrail check --path=app
 
-# 特定のルールのみ実行
+# Run specific rule only
 ./vendor/bin/guardrail check --rule=authorization
 
-# 詳細出力
+# Verbose output
 ./vendor/bin/guardrail check -v
 ```
 
-## CI 連携
+## CI Integration
 
 ### GitHub Actions
 
@@ -294,18 +294,18 @@ jobs:
       - run: ./vendor/bin/guardrail check
 ```
 
-## 動作原理
+## How It Works
 
-1. `routes/api.php` をパースし、`[Controller::class, 'method']` 形式のルート定義を抽出
-2. 各 Controller メソッドから呼び出しグラフ（Call Graph）を構築
-3. 指定されたメソッドへの到達可能性を検証
-4. 到達不可能なエントリーポイントを報告
+1. Parses `routes/api.php` and extracts `[Controller::class, 'method']` route definitions
+2. Builds a call graph from each controller method
+3. Verifies reachability to the specified methods
+4. Reports unreachable entry points
 
-## 要件
+## Requirements
 
 - PHP 8.1+
 - Laravel 9.x / 10.x / 11.x
 
-## ライセンス
+## License
 
 MIT
