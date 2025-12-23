@@ -1,5 +1,5 @@
 {
-    "name": "guardrail/guardrail",
+    "name": "fuwasegu/guardrail",
     "description": "PHP Call Chain Assertion Tool - Ensure required methods are called in execution paths",
     "type": "library",
     "license": "MIT",
@@ -12,7 +12,7 @@
     ],
     "authors": [
         {
-            "name": "Guardrail Contributors"
+            "name": "fuwasegu"
         }
     ],
     "require": {

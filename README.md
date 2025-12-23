@@ -1,35 +1,35 @@
 # Guardrail
 
-PHP コードの実行経路において「特定のメソッドが必ず呼ばれること」を静的解析で検証するツール。
+A static analysis tool that verifies specific methods are always called within PHP code execution paths.
 
-## 解決する問題
+## The Problem
 
 ```php
-// authorize() を呼び忘れたルートが本番に...
+// A route without authorize() slipped into production...
 class OrderController {
     public function destroy($id) {
-        // $this->authorizer->authorize() を忘れた！
+        // Forgot to call $this->authorizer->authorize()!
         $this->useCase->execute($id);
     }
 }
 ```
 
-従来のアプローチの限界：
-- **コードレビュー**: 人間は見落とす
-- **テスト**: 「呼ばれること」のテストは書きにくい
-- **Middleware**: すべてのケースに適用できない
+Limitations of traditional approaches:
+- **Code Review**: Humans miss things
+- **Testing**: Hard to write tests for "method must be called"
+- **Middleware**: Can't apply to all cases
 
-Guardrail は **CI で自動的にブロック** する。
+Guardrail **automatically blocks in CI**.
 
-## インストール
+## Installation
 
 ```bash
-composer require --dev guardrail/guardrail
+composer require --dev fuwasegu/guardrail
 ```
 
-## 使い方
+## Usage
 
-### 1. 設定ファイルを作成
+### 1. Create Configuration File
 
 ```php
 <?php
@@ -52,13 +52,13 @@ return GuardrailConfig::create()
     ->build();
 ```
 
-### 2. 実行
+### 2. Run
 
 ```bash
 ./vendor/bin/guardrail check
 ```
 
-### 出力例
+### Example Output
 
 ```
 Guardrail
@@ -81,39 +81,39 @@ Entry points: 3 total, 2 passed, 1 failed
 ✗ 1 violation(s) found
 ```
 
-## CLI オプション
+## CLI Options
 
 ```bash
-# 設定ファイル指定
+# Specify configuration file
 ./vendor/bin/guardrail check --config=path/to/guardrail.config.php
 
-# 解析対象ディレクトリ指定
+# Specify target directory
 ./vendor/bin/guardrail check --path=src/UseCase
 
-# 特定ルールのみ実行
+# Run specific rule only
 ./vendor/bin/guardrail check --rule=authorization
 
-# 詳細出力
+# Verbose output
 ./vendor/bin/guardrail check -v
 ```
 
-## 設定 DSL
+## Configuration DSL
 
 ### Entry Point Collectors
 
 ```php
-// Namespace パターン
+// Namespace patterns
 ->entryPoints()
-    ->namespace('App\\UseCase\\*')       // 単一セグメント
-    ->namespace('App\\**\\Admin\\*')     // 再帰
+    ->namespace('App\\UseCase\\*')       // Single segment wildcard
+    ->namespace('App\\**\\Admin\\*')     // Recursive wildcard
 
-// メソッドフィルター
+// Method filters
 ->entryPoints()
     ->namespace('App\\UseCase\\*')
-    ->method('execute')                  // 特定メソッドのみ
-    ->publicMethods()                    // public メソッドのみ
+    ->method('execute')                  // Specific methods only
+    ->publicMethods()                    // Public methods only
 
-// 複合
+// Combining patterns
 ->entryPoints()
     ->namespace('App\\UseCase\\*')
     ->or()
@@ -125,10 +125,10 @@ Entry points: 3 total, 2 passed, 1 failed
 ### Required Calls
 
 ```php
-// 単一メソッド
+// Single method
 ->mustCall([Authorizer::class, 'authorize'])
 
-// 複数のうちどれか
+// Any of multiple methods
 ->mustCallAnyOf([
     [Authorizer::class, 'authorize'],
     [Authorizer::class, 'authorizeOrFail'],
@@ -138,16 +138,16 @@ Entry points: 3 total, 2 passed, 1 failed
 ### Path Conditions
 
 ```php
-// どこかで1回呼ばれればOK（デフォルト）
+// Called at least once anywhere (default)
 ->atLeastOnce()
 
-// すべての分岐で呼ばれる必要がある（将来実装予定）
+// Must be called on all branches (planned for future)
 ->onAllPaths()
 ```
 
-## 設定例
+## Configuration Examples
 
-### 認可チェック
+### Authorization Check
 
 ```php
 <?php
@@ -165,7 +165,7 @@ return GuardrailConfig::create()
     ->build();
 ```
 
-### 監査ログ
+### Audit Logging
 
 ```php
 <?php
@@ -183,7 +183,7 @@ return GuardrailConfig::create()
     ->build();
 ```
 
-### 複合ルール
+### Multiple Rules
 
 ```php
 <?php
@@ -210,7 +210,7 @@ return GuardrailConfig::create()
     ->build();
 ```
 
-## CI 連携
+## CI Integration
 
 ### GitHub Actions
 
@@ -231,10 +231,10 @@ jobs:
       - run: ./vendor/bin/guardrail check
 ```
 
-## 要件
+## Requirements
 
 - PHP 8.1+
 
-## ライセンス
+## License
 
 MIT
