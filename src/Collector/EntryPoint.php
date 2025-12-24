@@ -15,6 +15,7 @@ final class EntryPoint
         public readonly string $filePath,
         public readonly ?string $description = null,
         public readonly ?string $routePath = null,
+        public readonly ?string $httpMethod = null,
     ) {}
 
     public function getIdentifier(): string

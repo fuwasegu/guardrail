@@ -250,6 +250,9 @@ final class RouteCollector implements CollectorInterface
                     return;
                 }
 
+                // Extract HTTP method from the route call (e.g., Route::get() → 'GET')
+                $httpMethod = $this->extractHttpMethod($node);
+
                 // Extract route path from first argument (e.g., '/users')
                 $routePath = $this->extractRoutePath($node);
 
@@ -262,11 +265,27 @@ final class RouteCollector implements CollectorInterface
                         continue;
                     }
 
-                    $entryPoint = $this->extractControllerAction($arg->value, $fullPath);
+                    $entryPoint = $this->extractControllerAction($arg->value, $fullPath, $httpMethod);
                     if ($entryPoint !== null) {
                         $this->entryPoints[] = $entryPoint;
                     }
                 }
+            }
+
+            private function extractHttpMethod(Node\Expr\MethodCall|Node\Expr\StaticCall $node): ?string
+            {
+                if (!$node->name instanceof Node\Identifier) {
+                    return null;
+                }
+
+                $methodName = strtoupper($node->name->toString());
+
+                // 'any' and 'match' are special - they accept multiple methods
+                if ($methodName === 'ANY' || $methodName === 'MATCH') {
+                    return null;
+                }
+
+                return $methodName;
             }
 
             private function buildFullPath(?string $routePath): ?string
@@ -334,7 +353,7 @@ final class RouteCollector implements CollectorInterface
                 return in_array($methodName, $routeMethods, strict: true);
             }
 
-            private function extractControllerAction(Node\Expr $expr, ?string $routePath): ?EntryPoint
+            private function extractControllerAction(Node\Expr $expr, ?string $routePath, ?string $httpMethod): ?EntryPoint
             {
                 // Looking for array syntax: [Controller::class, 'method']
                 if (!$expr instanceof Node\Expr\Array_) {
@@ -364,8 +383,9 @@ final class RouteCollector implements CollectorInterface
                 }
                 $methodName = $secondItem->value->value;
 
+                $methodPrefix = $httpMethod !== null ? "{$httpMethod} " : '';
                 $description = $routePath !== null
-                    ? "Route: {$routePath} → {$controllerClass}::{$methodName}"
+                    ? "Route: {$methodPrefix}{$routePath} → {$controllerClass}::{$methodName}"
                     : "Route: {$controllerClass}::{$methodName}";
 
                 return new EntryPoint(
@@ -374,6 +394,7 @@ final class RouteCollector implements CollectorInterface
                     filePath: $this->resolveControllerFilePath($controllerClass),
                     description: $description,
                     routePath: $routePath,
+                    httpMethod: $httpMethod,
                 );
             }
 

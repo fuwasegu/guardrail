@@ -284,4 +284,115 @@ final class RouteCollectorTest extends TestCase
         $this->assertNotNull($userIndexEntryPoint);
         $this->assertEquals('/api/users', $userIndexEntryPoint->routePath);
     }
+
+    public function testExtractsHttpMethod(): void
+    {
+        $collector = (new RouteCollector())->routeFile('routes/api.php');
+
+        $entryPoints = iterator_to_array($collector->collect($this->fixturesPath), preserve_keys: false);
+
+        // Find the entry point for UserController::index (GET)
+        $userIndexEntryPoint = null;
+        foreach ($entryPoints as $ep) {
+            if ($ep->className === 'App\\Http\\Controllers\\UserController' && $ep->methodName === 'index') {
+                $userIndexEntryPoint = $ep;
+                break;
+            }
+        }
+
+        $this->assertNotNull($userIndexEntryPoint);
+        $this->assertEquals('GET', $userIndexEntryPoint->httpMethod);
+    }
+
+    public function testExtractsHttpMethodForPost(): void
+    {
+        $collector = (new RouteCollector())->routeFile('routes/api.php');
+
+        $entryPoints = iterator_to_array($collector->collect($this->fixturesPath), preserve_keys: false);
+
+        // Find the entry point for UserController::store (POST)
+        $userStoreEntryPoint = null;
+        foreach ($entryPoints as $ep) {
+            if ($ep->className === 'App\\Http\\Controllers\\UserController' && $ep->methodName === 'store') {
+                $userStoreEntryPoint = $ep;
+                break;
+            }
+        }
+
+        $this->assertNotNull($userStoreEntryPoint);
+        $this->assertEquals('POST', $userStoreEntryPoint->httpMethod);
+    }
+
+    public function testExtractsHttpMethodForPut(): void
+    {
+        $collector = (new RouteCollector())->routeFile('routes/api.php');
+
+        $entryPoints = iterator_to_array($collector->collect($this->fixturesPath), preserve_keys: false);
+
+        // Find the entry point for UserController::update (PUT)
+        $userUpdateEntryPoint = null;
+        foreach ($entryPoints as $ep) {
+            if ($ep->className === 'App\\Http\\Controllers\\UserController' && $ep->methodName === 'update') {
+                $userUpdateEntryPoint = $ep;
+                break;
+            }
+        }
+
+        $this->assertNotNull($userUpdateEntryPoint);
+        $this->assertEquals('PUT', $userUpdateEntryPoint->httpMethod);
+    }
+
+    public function testExtractsHttpMethodForDelete(): void
+    {
+        $collector = (new RouteCollector())->routeFile('routes/api.php');
+
+        $entryPoints = iterator_to_array($collector->collect($this->fixturesPath), preserve_keys: false);
+
+        // Find the entry point for UserController::destroy (DELETE)
+        $userDestroyEntryPoint = null;
+        foreach ($entryPoints as $ep) {
+            if ($ep->className === 'App\\Http\\Controllers\\UserController' && $ep->methodName === 'destroy') {
+                $userDestroyEntryPoint = $ep;
+                break;
+            }
+        }
+
+        $this->assertNotNull($userDestroyEntryPoint);
+        $this->assertEquals('DELETE', $userDestroyEntryPoint->httpMethod);
+    }
+
+    public function testHttpMethodInDescriptionIncludesMethod(): void
+    {
+        $collector = (new RouteCollector())->routeFile('routes/api.php');
+
+        $entryPoints = iterator_to_array($collector->collect($this->fixturesPath), preserve_keys: false);
+
+        // Find the entry point for UserController::store (POST)
+        $userStoreEntryPoint = null;
+        foreach ($entryPoints as $ep) {
+            if ($ep->className === 'App\\Http\\Controllers\\UserController' && $ep->methodName === 'store') {
+                $userStoreEntryPoint = $ep;
+                break;
+            }
+        }
+
+        $this->assertNotNull($userStoreEntryPoint);
+        $this->assertStringContainsString('POST', $userStoreEntryPoint->description);
+        $this->assertStringContainsString('/users', $userStoreEntryPoint->description);
+    }
+
+    public function testAllEntryPointsHaveHttpMethod(): void
+    {
+        $collector = (new RouteCollector())->routeFile('routes/api.php');
+
+        $entryPoints = iterator_to_array($collector->collect($this->fixturesPath), preserve_keys: false);
+
+        // All entry points from route files should have HTTP methods
+        foreach ($entryPoints as $ep) {
+            $this->assertNotNull(
+                $ep->httpMethod,
+                "Entry point {$ep->getIdentifier()} should have an HTTP method"
+            );
+        }
+    }
 }

@@ -174,6 +174,67 @@ final class ConfigTest extends TestCase
         GuardrailConfig::loadFromFile('/nonexistent/path.php');
     }
 
+    public function testEntryPointWithHttpMethodFilter(): void
+    {
+        $rules = GuardrailConfig::create()
+            ->rule('test', static function (RuleBuilder $rule): void {
+                $rule->entryPoints()
+                    ->route('routes/api.php', '/api')
+                    ->httpMethod('POST', 'PUT', 'DELETE')
+                    ->end();
+                $rule->mustCall([self::class, 'method']);
+            })
+            ->build();
+
+        $this->assertCount(1, $rules);
+    }
+
+    public function testEntryPointWithSingleHttpMethod(): void
+    {
+        $rules = GuardrailConfig::create()
+            ->rule('test', static function (RuleBuilder $rule): void {
+                $rule->entryPoints()
+                    ->route('routes/api.php')
+                    ->httpMethod('GET')
+                    ->end();
+                $rule->mustCall([self::class, 'method']);
+            })
+            ->build();
+
+        $this->assertCount(1, $rules);
+    }
+
+    public function testEntryPointWithHttpMethodCaseInsensitive(): void
+    {
+        $rules = GuardrailConfig::create()
+            ->rule('test', static function (RuleBuilder $rule): void {
+                $rule->entryPoints()
+                    ->route('routes/api.php')
+                    ->httpMethod('get', 'post')  // lowercase
+                    ->end();
+                $rule->mustCall([self::class, 'method']);
+            })
+            ->build();
+
+        $this->assertCount(1, $rules);
+    }
+
+    public function testEntryPointCombinesHttpMethodAndExcludeRoutes(): void
+    {
+        $rules = GuardrailConfig::create()
+            ->rule('test', static function (RuleBuilder $rule): void {
+                $rule->entryPoints()
+                    ->route('routes/api.php', '/api')
+                    ->excludeRoutes('/api/login', '/api/health')
+                    ->httpMethod('POST', 'PUT', 'DELETE')
+                    ->end();
+                $rule->mustCall([self::class, 'method']);
+            })
+            ->build();
+
+        $this->assertCount(1, $rules);
+    }
+
     public function dummyMethod(): void
     {
     }

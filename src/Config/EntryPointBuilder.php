@@ -9,6 +9,7 @@ use Guardrail\Collector\CompositeCollector;
 use Guardrail\Collector\ExcludingCollector;
 use Guardrail\Collector\NamespaceCollector;
 use Guardrail\Collector\RouteCollector;
+use Guardrail\Collector\RouteMethodFilterCollector;
 use Guardrail\Collector\RoutePathFilterCollector;
 
 /**
@@ -24,6 +25,9 @@ final class EntryPointBuilder
 
     /** @var list<string> */
     private array $excludedRoutePaths = [];
+
+    /** @var list<string> Allowed HTTP methods (empty = all allowed) */
+    private array $allowedHttpMethods = [];
 
     private ?NamespaceCollector $currentNamespaceCollector = null;
 
@@ -117,6 +121,22 @@ final class EntryPointBuilder
         return $this;
     }
 
+    /**
+     * Filter route entry points by HTTP method.
+     *
+     * Only routes matching the specified HTTP methods will be included.
+     * If not called, all HTTP methods are allowed.
+     *
+     * @param string ...$methods HTTP methods to allow (e.g., 'GET', 'POST', 'PUT', 'DELETE')
+     */
+    public function httpMethod(string ...$methods): self
+    {
+        foreach ($methods as $method) {
+            $this->allowedHttpMethods[] = strtoupper($method);
+        }
+        return $this;
+    }
+
     public function or(): self
     {
         $this->inExcluding = false;
@@ -152,6 +172,11 @@ final class EntryPointBuilder
         // Apply route path exclusions
         if ($this->excludedRoutePaths !== []) {
             $baseCollector = new RoutePathFilterCollector($baseCollector, $this->excludedRoutePaths);
+        }
+
+        // Apply HTTP method filter
+        if ($this->allowedHttpMethods !== []) {
+            $baseCollector = new RouteMethodFilterCollector($baseCollector, $this->allowedHttpMethods);
         }
 
         return $baseCollector;

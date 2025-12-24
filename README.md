@@ -11,6 +11,7 @@ A static analysis tool for Laravel that verifies API route controllers always ca
   - [Scan Paths](#scan-paths)
   - [Entry Points](#entry-points)
   - [Excluding Routes](#excluding-routes)
+  - [Filtering by HTTP Method](#filtering-by-http-method)
   - [Required Calls](#required-calls)
 - [CLI](#cli)
 - [CI Integration](#ci-integration)
@@ -160,6 +161,28 @@ $rule->entryPoints()
     ->route('routes/api.php')
     ->excluding()
     ->namespace('App\\Http\\Controllers\\HealthController')
+    ->end();
+```
+
+### Filtering by HTTP Method
+
+Filter routes to only include specific HTTP methods. Useful when authorization rules differ by operation type.
+
+```php
+$rule->entryPoints()
+    ->route('routes/api.php', prefix: '/api')
+    ->httpMethod('POST', 'PUT', 'DELETE')  // Only write operations
+    ->end();
+```
+
+If `httpMethod()` is not called, all HTTP methods are included by default.
+
+```php
+// Combine with route exclusions
+$rule->entryPoints()
+    ->route('routes/api.php', prefix: '/api')
+    ->excludeRoutes('/api/login', '/api/register')
+    ->httpMethod('POST', 'PUT', 'PATCH', 'DELETE')
     ->end();
 ```
 
