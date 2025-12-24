@@ -178,10 +178,7 @@ final class ConfigTest extends TestCase
     {
         $rules = GuardrailConfig::create()
             ->rule('test', static function (RuleBuilder $rule): void {
-                $rule->entryPoints()
-                    ->route('routes/api.php', '/api')
-                    ->httpMethod('POST', 'PUT', 'DELETE')
-                    ->end();
+                $rule->entryPoints()->route('routes/api.php', '/api')->httpMethod('POST', 'PUT', 'DELETE')->end();
                 $rule->mustCall([self::class, 'method']);
             })
             ->build();
@@ -193,10 +190,7 @@ final class ConfigTest extends TestCase
     {
         $rules = GuardrailConfig::create()
             ->rule('test', static function (RuleBuilder $rule): void {
-                $rule->entryPoints()
-                    ->route('routes/api.php')
-                    ->httpMethod('GET')
-                    ->end();
+                $rule->entryPoints()->route('routes/api.php')->httpMethod('GET')->end();
                 $rule->mustCall([self::class, 'method']);
             })
             ->build();
@@ -208,10 +202,7 @@ final class ConfigTest extends TestCase
     {
         $rules = GuardrailConfig::create()
             ->rule('test', static function (RuleBuilder $rule): void {
-                $rule->entryPoints()
-                    ->route('routes/api.php')
-                    ->httpMethod('get', 'post')  // lowercase
-                    ->end();
+                $rule->entryPoints()->route('routes/api.php')->httpMethod('get', 'post')->end(); // lowercase
                 $rule->mustCall([self::class, 'method']);
             })
             ->build();
@@ -223,7 +214,8 @@ final class ConfigTest extends TestCase
     {
         $rules = GuardrailConfig::create()
             ->rule('test', static function (RuleBuilder $rule): void {
-                $rule->entryPoints()
+                $rule
+                    ->entryPoints()
                     ->route('routes/api.php', '/api')
                     ->excludeRoutes('/api/login', '/api/health')
                     ->httpMethod('POST', 'PUT', 'DELETE')

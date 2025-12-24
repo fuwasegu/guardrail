@@ -353,8 +353,11 @@ final class RouteCollector implements CollectorInterface
                 return in_array($methodName, $routeMethods, strict: true);
             }
 
-            private function extractControllerAction(Node\Expr $expr, ?string $routePath, ?string $httpMethod): ?EntryPoint
-            {
+            private function extractControllerAction(
+                Node\Expr $expr,
+                ?string $routePath,
+                ?string $httpMethod,
+            ): ?EntryPoint {
                 // Looking for array syntax: [Controller::class, 'method']
                 if (!$expr instanceof Node\Expr\Array_) {
                     return null;

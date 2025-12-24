@@ -389,10 +389,7 @@ final class RouteCollectorTest extends TestCase
 
         // All entry points from route files should have HTTP methods
         foreach ($entryPoints as $ep) {
-            $this->assertNotNull(
-                $ep->httpMethod,
-                "Entry point {$ep->getIdentifier()} should have an HTTP method"
-            );
+            $this->assertNotNull($ep->httpMethod, "Entry point {$ep->getIdentifier()} should have an HTTP method");
         }
     }
 }
