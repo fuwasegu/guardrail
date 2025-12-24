@@ -41,12 +41,25 @@ final class CheckCommand extends Command
                 'r',
                 InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY,
                 'Only check specific rule(s)',
+            )
+            ->addOption(
+                'memory-limit',
+                'm',
+                InputOption::VALUE_REQUIRED,
+                'Memory limit for analysis (e.g., "1G", "512M", "-1" for unlimited)',
             );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
+
+        // Set memory limit if specified (intentional for CLI tool, like PHPStan)
+        /** @var string|null $memoryLimit */
+        $memoryLimit = $input->getOption('memory-limit');
+        if ($memoryLimit !== null) {
+            ini_set('memory_limit', $memoryLimit);
+        }
 
         $io->title('Guardrail');
 

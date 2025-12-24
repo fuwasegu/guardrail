@@ -19,6 +19,8 @@ too-many-methods = { enabled = false }
 excessive-parameter-list = { enabled = false }
 halstead = { enabled = false }
 prefer-early-continue = { enabled = false }
+# CLI tool needs ini_set for memory limit option (like PHPStan)
+no-ini-set = { enabled = false }
 
 [analyzer]
 excludes = ["tests"]

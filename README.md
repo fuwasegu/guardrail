@@ -269,6 +269,11 @@ return GuardrailConfig::create()
 # Run specific rule only
 ./vendor/bin/guardrail check --rule=authorization
 
+# Set memory limit (like PHPStan)
+./vendor/bin/guardrail check --memory-limit=1G
+./vendor/bin/guardrail check -m 2G
+./vendor/bin/guardrail check --memory-limit=-1  # Unlimited
+
 # Verbose output
 ./vendor/bin/guardrail check -v
 ```
@@ -305,16 +310,40 @@ jobs:
 
 The following call patterns are detected:
 
+### Method Calls
 - ✅ Direct method calls: `$this->authorizer->authorize()`
-- ✅ Static calls: `Authorizer::authorize()`
-- ✅ Closure calls: `$closure = function() { $this->authorizer->authorize(); }`
+- ✅ Property method calls: `$this->service->authorizer->authorize()`
+- ✅ Method injection: `public function handle(Authorizer $auth) { $auth->authorize(); }`
 - ✅ Null-safe operator: `$this->authorizer?->authorize()`
-- ✅ First-class callable: `$callable = $this->authorizer->authorize(...)`
+
+### Static Calls
+- ✅ Class static calls: `Authorizer::authorize()`
+- ✅ `self::method()`: Resolves to current class
+- ✅ `static::method()`: Resolves to current class (including inherited methods)
+- ✅ `parent::method()`: Resolves to parent class
+
+### Invocable Patterns
+- ✅ Variable invocable: `$useCase($input)` → calls `__invoke()`
+- ✅ Property invocable: `($this->useCase)($input)` → calls `__invoke()`
+- ✅ First-class callable creation: `$callable = $this->authorizer->authorize(...)`
+
+### Closure & Arrow Functions
+- ✅ Closure body: `$closure = function() { $this->authorizer->authorize(); }`
+- ✅ Arrow function: `$fn = fn() => $this->authorizer->authorize()`
+
+### Type Resolution
 - ✅ Interface type hints: `AuthorizerInterface $authorizer`
 - ✅ **Interface implementation resolution**: When calling a method on an interface-typed property, all implementing classes are analyzed
 - ✅ Trait method calls: calls through trait methods
 - ✅ Parent class methods: calls through inherited methods
-- ✅ Conditional/Loop/Try-Catch: calls inside control structures
+
+### Control Flow
+- ✅ Conditional: `if/else` branches
+- ✅ Loops: `foreach/for/while` loops
+- ✅ Try-Catch: `try/catch/finally` blocks
+- ✅ Match expression: `match ($x) { 'a' => $this->authorize(), ... }`
+- ✅ Ternary: `$condition ? $this->authorize() : null`
+- ✅ Null coalescing: `$this->auth?->authorize() ?? $this->fallback()`
 
 ### Interface Implementation Resolution Example
 
@@ -350,9 +379,14 @@ As a static analysis tool, certain patterns cannot be detected:
 |---------|---------|--------|
 | Dynamic method calls | `$method = 'authorize'; $this->authorizer->$method()` | Method name resolved at runtime |
 | `call_user_func` | `call_user_func([$this->authorizer, 'authorize'])` | Target resolved at runtime |
+| Array callback execution | `$callable = [$obj, 'method']; $callable()` | Array callback type not tracked |
+| Array callback in functions | `array_map([$obj, 'method'], $items)` | Callback passed to function |
+| Closure passed as argument | `$this->run(function() { ... })` | Closure body not linked to caller |
 | Local variable types | `$auth = $this->authorizer; $auth->authorize()` | Type inference not implemented |
 | Factory pattern | `$auth = $factory->create(); $auth->authorize()` | Return type tracking not implemented |
 | Chained calls | `$this->holder->getAuthorizer()->authorize()` | Return type tracking not implemented |
+| Variable class names | `$class::method()` | Class name resolved at runtime |
+| Reflection calls | `$method->invoke($obj)` | Reflection resolves at runtime |
 
 ## Requirements
 

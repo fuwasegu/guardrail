@@ -392,6 +392,11 @@ final class CallAnalyzerVisitor extends NodeVisitorAbstract
             $this->analyzeStaticCall($node);
         }
 
+        // Handle $obj($args) as $obj->__invoke($args)
+        if ($node instanceof Node\Expr\FuncCall && $this->currentMethod !== null) {
+            $this->analyzeInvocableCall($node);
+        }
+
         return null;
     }
 
@@ -510,7 +515,25 @@ final class CallAnalyzerVisitor extends NodeVisitorAbstract
         $calleeClass = null;
 
         if ($node->class instanceof Node\Name) {
-            $calleeClass = $this->resolveName($node->class);
+            $nameStr = $node->class->toString();
+
+            // Handle parent:: specially - resolve to actual parent class
+            if ($nameStr === 'parent') {
+                $calleeClass = $this->classHierarchy->getClassParent($currentClass);
+            }
+
+            if ($nameStr !== 'parent') {
+                $calleeClass = $this->resolveName($node->class);
+            }
+        }
+
+        // For self:: and static:: calls, resolve where the method is actually defined
+        // (method might be inherited from a parent class)
+        if ($calleeClass === $currentClass) {
+            $resolvedClass = $this->classHierarchy->resolveMethodClass($currentClass, $methodName);
+            if ($resolvedClass !== null) {
+                $calleeClass = $resolvedClass;
+            }
         }
 
         $call = new MethodCall(
@@ -520,6 +543,58 @@ final class CallAnalyzerVisitor extends NodeVisitorAbstract
             calleeMethod: $methodName,
             line: $node->getLine(),
             isStatic: true,
+        );
+
+        $this->callGraph->addCall($call);
+    }
+
+    /**
+     * Analyze invocable call: $obj($args) is equivalent to $obj->__invoke($args)
+     * Handles both $variable($args) and ($this->property)($args) patterns
+     */
+    private function analyzeInvocableCall(Node\Expr\FuncCall $node): void
+    {
+        $currentClass = $this->currentClass;
+        $currentMethod = $this->currentMethod;
+        if ($currentClass === null || $currentMethod === null) {
+            return;
+        }
+
+        $calleeClass = null;
+        $variableName = null;
+
+        // Handle $variable($args) pattern
+        if ($node->name instanceof Node\Expr\Variable && is_string($node->name->name)) {
+            $varName = $node->name->name;
+            $calleeClass = $this->currentMethodVariables[$varName] ?? null;
+            $variableName = '$' . $varName;
+        }
+
+        // Handle ($this->property)($args) pattern
+        if (
+            $node->name instanceof Node\Expr\PropertyFetch
+            && $node->name->var instanceof Node\Expr\Variable
+            && $node->name->var->name === 'this'
+            && $node->name->name instanceof Node\Identifier
+        ) {
+            $propertyName = $node->name->name->toString();
+            $calleeClass = $this->typeRegistry->resolvePropertyType($currentClass, $propertyName);
+            $variableName = '$this->' . $propertyName;
+        }
+
+        if ($calleeClass === null) {
+            return;
+        }
+
+        // Create a call to __invoke
+        $call = new MethodCall(
+            callerClass: $currentClass,
+            callerMethod: $currentMethod,
+            calleeClass: $calleeClass,
+            calleeMethod: '__invoke',
+            line: $node->getLine(),
+            isStatic: false,
+            variableName: $variableName,
         );
 
         $this->callGraph->addCall($call);
