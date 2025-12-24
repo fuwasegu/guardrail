@@ -71,6 +71,9 @@ final class RouteCollector implements CollectorInterface
             /** @var array<string, string> Maps alias/short name to FQCN */
             private array $imports = [];
 
+            /** @var list<string> Stack of route prefixes from Route::prefix()->group() */
+            private array $prefixStack = [];
+
             public function __construct(
                 private readonly string $basePath,
             ) {}
@@ -86,12 +89,129 @@ final class RouteCollector implements CollectorInterface
                     }
                 }
 
+                // Check for Route::prefix('xxx')->group(closure) or Route::group(['prefix' => 'xxx'], closure)
+                if ($node instanceof Node\Expr\MethodCall) {
+                    $prefix = $this->extractPrefixFromGroupCall($node);
+                    if ($prefix !== null) {
+                        $this->prefixStack[] = $prefix;
+                        // Process the group's closure manually to track prefix scope
+                        $this->processGroupClosure($node);
+                        array_pop($this->prefixStack);
+                        return NodeTraverser::DONT_TRAVERSE_CHILDREN;
+                    }
+                }
+
                 // Look for Route::method() calls
                 if ($node instanceof Node\Expr\MethodCall || $node instanceof Node\Expr\StaticCall) {
                     $this->processRouteCall($node);
                 }
 
                 return null;
+            }
+
+            /**
+             * Extract prefix from Route::prefix('xxx')->group() or Route::group(['prefix' => 'xxx'], ...)
+             */
+            private function extractPrefixFromGroupCall(Node\Expr\MethodCall $node): ?string
+            {
+                if (!$node->name instanceof Node\Identifier || $node->name->toString() !== 'group') {
+                    return null;
+                }
+
+                // Check for Route::prefix('xxx')->group() pattern (chained method calls)
+                if ($node->var instanceof Node\Expr\MethodCall) {
+                    return $this->extractPrefixFromChain($node->var);
+                }
+
+                // Check for Route::prefix('xxx')->group() where prefix is directly on Route::
+                if ($node->var instanceof Node\Expr\StaticCall) {
+                    if (!$node->var->class instanceof Node\Name || $node->var->class->toString() !== 'Route') {
+                        return null;
+                    }
+
+                    // Route::prefix('xxx')->group()
+                    if ($node->var->name instanceof Node\Identifier && $node->var->name->toString() === 'prefix') {
+                        $args = $node->var->args;
+                        if ($args !== [] && $args[0] instanceof Node\Arg && $args[0]->value instanceof Node\Scalar\String_) {
+                            return $args[0]->value->value;
+                        }
+                    }
+
+                    // Route::group(['prefix' => 'xxx'], ...) pattern
+                    if ($node->var->name instanceof Node\Identifier && $node->var->name->toString() === 'group') {
+                        $args = $node->args;
+                        if ($args !== [] && $args[0] instanceof Node\Arg && $args[0]->value instanceof Node\Expr\Array_) {
+                            return $this->extractPrefixFromArray($args[0]->value);
+                        }
+                    }
+                }
+
+                return null;
+            }
+
+            /**
+             * Extract prefix from chained calls like Route::prefix('api')->middleware(...)->group()
+             */
+            private function extractPrefixFromChain(Node\Expr $expr): ?string
+            {
+                while ($expr instanceof Node\Expr\MethodCall) {
+                    if ($expr->name instanceof Node\Identifier && $expr->name->toString() === 'prefix') {
+                        $args = $expr->args;
+                        if ($args !== [] && $args[0] instanceof Node\Arg && $args[0]->value instanceof Node\Scalar\String_) {
+                            return $args[0]->value->value;
+                        }
+                    }
+                    $expr = $expr->var;
+                }
+
+                // Check if chain starts with Route::prefix()
+                if ($expr instanceof Node\Expr\StaticCall) {
+                    if ($expr->class instanceof Node\Name && $expr->class->toString() === 'Route') {
+                        if ($expr->name instanceof Node\Identifier && $expr->name->toString() === 'prefix') {
+                            $args = $expr->args;
+                            if ($args !== [] && $args[0] instanceof Node\Arg && $args[0]->value instanceof Node\Scalar\String_) {
+                                return $args[0]->value->value;
+                            }
+                        }
+                    }
+                }
+
+                return null;
+            }
+
+            /**
+             * Extract prefix from array like ['prefix' => 'api']
+             */
+            private function extractPrefixFromArray(Node\Expr\Array_ $array): ?string
+            {
+                foreach ($array->items as $item) {
+                    if (!$item instanceof Node\Expr\ArrayItem || $item->key === null) {
+                        continue;
+                    }
+                    if ($item->key instanceof Node\Scalar\String_ && $item->key->value === 'prefix') {
+                        if ($item->value instanceof Node\Scalar\String_) {
+                            return $item->value->value;
+                        }
+                    }
+                }
+                return null;
+            }
+
+            /**
+             * Process the closure inside a group() call
+             */
+            private function processGroupClosure(Node\Expr\MethodCall $groupCall): void
+            {
+                foreach ($groupCall->args as $arg) {
+                    if (!$arg instanceof Node\Arg) {
+                        continue;
+                    }
+                    if ($arg->value instanceof Node\Expr\Closure || $arg->value instanceof Node\Expr\ArrowFunction) {
+                        $traverser = new NodeTraverser();
+                        $traverser->addVisitor($this);
+                        $traverser->traverse($arg->value->stmts ?? [$arg->value->expr]);
+                    }
+                }
             }
 
             private function processRouteCall(Node\Expr\MethodCall|Node\Expr\StaticCall $node): void
@@ -103,17 +223,37 @@ final class RouteCollector implements CollectorInterface
                 // Extract route path from first argument (e.g., '/users')
                 $routePath = $this->extractRoutePath($node);
 
+                // Prepend accumulated prefixes
+                $fullPath = $this->buildFullPath($routePath);
+
                 // Extract [Controller::class, 'method'] from arguments
                 foreach ($node->args as $arg) {
                     if (!$arg instanceof Node\Arg) {
                         continue;
                     }
 
-                    $entryPoint = $this->extractControllerAction($arg->value, $routePath);
+                    $entryPoint = $this->extractControllerAction($arg->value, $fullPath);
                     if ($entryPoint !== null) {
                         $this->entryPoints[] = $entryPoint;
                     }
                 }
+            }
+
+            private function buildFullPath(?string $routePath): ?string
+            {
+                if ($this->prefixStack === [] && $routePath === null) {
+                    return null;
+                }
+
+                $parts = [];
+                foreach ($this->prefixStack as $prefix) {
+                    $parts[] = trim($prefix, '/');
+                }
+                if ($routePath !== null) {
+                    $parts[] = trim($routePath, '/');
+                }
+
+                return '/' . implode('/', array_filter($parts));
             }
 
             private function extractRoutePath(Node\Expr\MethodCall|Node\Expr\StaticCall $node): ?string

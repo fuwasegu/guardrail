@@ -2,10 +2,24 @@
 
 A static analysis tool for Laravel that verifies API route controllers always call required methods (authorization, logging, etc.).
 
+## Table of Contents
+
+- [Problem](#the-problem)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+  - [Scan Paths](#scan-paths)
+  - [Entry Points](#entry-points)
+  - [Excluding Routes](#excluding-routes)
+  - [Required Calls](#required-calls)
+- [CLI](#cli)
+- [CI Integration](#ci-integration)
+- [How It Works](#how-it-works)
+- [Limitations](#limitations)
+
 ## The Problem
 
 ```php
-// A controller without authorize() slipped into production...
 class OrderController
 {
     public function destroy(int $id): JsonResponse
@@ -16,10 +30,9 @@ class OrderController
 }
 ```
 
-Limitations of traditional approaches:
-- **Code Review**: Humans miss things
-- **Testing**: Hard to write tests for "method must be called"
-- **Middleware**: Can't apply to all cases
+- **Code Review** - Humans miss things
+- **Testing** - Hard to write tests for "method must be called"
+- **Middleware** - Can't apply to all cases
 
 Guardrail **automatically blocks in CI**.
 
@@ -31,19 +44,18 @@ composer require --dev fuwasegu/guardrail
 
 ## Quick Start
 
-### 1. Create Configuration File
+**1. Create config file** (`guardrail.config.php`)
 
 ```php
 <?php
-// guardrail.config.php
 
 use App\Services\Auth\Authorizer;
 use Guardrail\Config\GuardrailConfig;
 use Guardrail\Config\RuleBuilder;
 
 return GuardrailConfig::create()
-    ->rule('api-authorization', function (RuleBuilder $rule): void {
-        // Target all controllers registered in routes/api.php
+    ->paths(['app'])
+    ->rule('authorization', function (RuleBuilder $rule): void {
         $rule->entryPoints()
             ->route('routes/api.php')
             ->end();
@@ -51,107 +63,58 @@ return GuardrailConfig::create()
         $rule->mustCall([Authorizer::class, 'authorize'])
             ->atLeastOnce()
             ->message('All API endpoints must call authorize()');
-    })
-    ->build();
+    });
 ```
 
-### 2. Run
+**2. Run**
 
 ```bash
-./vendor/bin/guardrail check
+./vendor/bin/guardrail
 ```
 
-### Example Output
+**3. Example output**
 
 ```
-Guardrail
-=========
-
-Rule: api-authorization
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Rule: authorization
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ✗ App\Http\Controllers\OrderController::destroy
-  /app/Http/Controllers/OrderController.php
   All API endpoints must call authorize()
-  No call to App\Services\Auth\Authorizer::authorize found in call chain
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Summary
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Rules:        1 total, 0 passed, 1 failed
-Entry points: 15 total, 14 passed, 1 failed
+✓ App\Http\Controllers\UserController::index
+  via: App\UseCase\ListUsersUseCase::__invoke → Authorizer::authorize
 
-✗ 1 violation(s) found
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Summary: 15 total, 14 passed, 1 failed
 ```
 
-## Supported Route Definitions
+## Configuration
+
+### Scan Paths
+
+Specify directories to scan for building the call graph.
 
 ```php
-// routes/api.php
-
-// ✅ Supported: Array syntax
-Route::get('/users', [UserController::class, 'index']);
-Route::post('/users', [UserController::class, 'store']);
-
-// ✅ Supported: Routes inside groups
-Route::middleware(['auth:sanctum'])->group(function () {
-    Route::put('/users/{id}', [UserController::class, 'update']);
-    Route::delete('/users/{id}', [UserController::class, 'destroy']);
-});
-
-// ✅ Supported: Prefixed groups
-Route::prefix('admin')->group(function () {
-    Route::get('/dashboard', [AdminController::class, 'dashboard']);
-});
-
-// ❌ Not yet supported (planned)
-Route::resource('/posts', PostController::class);
-Route::apiResource('/comments', CommentController::class);
-```
-
-## Scan Configuration
-
-By default, Guardrail scans `src` and `app` directories, excluding `vendor`. You can customize this in your configuration:
-
-```php
-<?php
-// guardrail.config.php
-
-use Guardrail\Config\GuardrailConfig;
-use Guardrail\Config\RuleBuilder;
-
 return GuardrailConfig::create()
-    // Specify directories to scan (relative to project root)
-    ->paths(['src', 'app', 'modules'])
-
-    // Exclude directories/patterns
-    ->exclude(['vendor', 'tests', 'database/migrations'])
-
-    ->rule('authorization', function (RuleBuilder $rule): void {
-        // ... rule configuration
-    })
-    ->build();
+    ->paths(['app', 'src', 'Modules'])    // Default: ['src', 'app']
+    ->exclude(['vendor', 'tests'])         // Default: ['vendor']
+    ->rule('...', function (RuleBuilder $rule): void {
+        // ...
+    });
 ```
 
-### Default Behavior
+> **Note**: When using `paths()` or `exclude()`, do **NOT** call `->build()` at the end.
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `paths` | `['src', 'app']` | Directories to scan for PHP files |
-| `exclude` | `['vendor']` | Patterns to exclude from scanning |
+### Entry Points
 
-> **Performance Tip**: Limiting scan paths significantly improves analysis speed. Only scan directories that contain code relevant to your rules.
-
-## Configuration Reference
-
-### Specifying Entry Points
+Define the methods to analyze as entry points.
 
 #### From Route Files (Recommended)
 
 ```php
 $rule->entryPoints()
-    ->route('routes/api.php')           // API routes
-    ->route('routes/admin.php')         // Multiple files supported
+    ->route('routes/api.php')
+    ->route('routes/admin.php')
     ->end();
 ```
 
@@ -159,191 +122,88 @@ $rule->entryPoints()
 
 ```php
 $rule->entryPoints()
-    ->namespace('App\\Http\\Controllers\\Api\\*')   // Single segment wildcard
-    ->namespace('App\\**\\Controllers\\*')          // Recursive wildcard
-    ->publicMethods()                               // Public methods only
+    ->namespace('App\\Http\\Controllers\\Api\\*')   // Wildcard
+    ->namespace('App\\**\\Controllers\\*')          // Recursive
+    ->publicMethods()
     ->end();
 ```
 
-#### Combining Patterns
+### Excluding Routes
 
-```php
-$rule->entryPoints()
-    ->route('routes/api.php')
-    ->or()
-    ->namespace('App\\Console\\Commands\\*')
-    ->method('handle')
-    ->excluding()
-    ->namespace('App\\Http\\Controllers\\HealthCheckController')
-    ->end();
-```
-
-#### Excluding Specific Route Paths
-
-You can exclude specific API paths from analysis using glob-like patterns:
+Exclude specific routes from analysis.
 
 ```php
 $rule->entryPoints()
     ->route('routes/api.php')
     ->excludeRoutes(
-        '/api/login',              // Exact match
-        '/api/logout',             // Exact match
-        '/health',                 // Health check endpoint
-        '/api/public/*',           // Single segment wildcard
-        '/api/webhooks/**',        // Multi-segment wildcard
+        '/api/login',        // Exact match
+        '/api/public/*',     // Single segment: /api/public/docs
+        '/api/webhooks/**',  // Any depth: /api/webhooks/stripe/payment
     )
     ->end();
 ```
 
-**Pattern syntax:**
-- `/api/login` - Exact match
-- `/api/*` - Matches single path segment (e.g., `/api/users`, `/api/orders`)
-- `/api/**` - Matches any path segments (e.g., `/api/users/123`, `/api/admin/users/list`)
+#### Exclude by Namespace
 
-### Required Method Calls
+```php
+$rule->entryPoints()
+    ->route('routes/api.php')
+    ->excluding()
+    ->namespace('App\\Http\\Controllers\\HealthController')
+    ->end();
+```
+
+### Required Calls
+
+Specify methods that must be called.
 
 ```php
 // Single method
-$rule->mustCall([Authorizer::class, 'authorize']);
+$rule->mustCall([Authorizer::class, 'authorize'])
+    ->atLeastOnce()
+    ->message('Authorization required');
 
 // Any of multiple methods
 $rule->mustCallAnyOf([
     [Authorizer::class, 'authorize'],
-    [Authorizer::class, 'authorizeOrFail'],
     [Authorizer::class, 'can'],
-]);
-```
-
-### Call Conditions
-
-```php
-// Called at least once (default)
-$rule->mustCall([...])->atLeastOnce();
-
-// Must be called on all branches (planned)
-$rule->mustCall([...])->onAllPaths();
-```
-
-## Configuration Examples
-
-### Authorization Check
-
-```php
-<?php
-
-use App\Services\Auth\Authorizer;
-use Guardrail\Config\GuardrailConfig;
-use Guardrail\Config\RuleBuilder;
-
-return GuardrailConfig::create()
-    ->rule('authorization', function (RuleBuilder $rule): void {
-        $rule->entryPoints()
-            ->route('routes/api.php')
-            ->end();
-
-        $rule->mustCallAnyOf([
-            [Authorizer::class, 'authorize'],
-            [Authorizer::class, 'authorizeOrFail'],
-        ])
-            ->atLeastOnce()
-            ->message('API endpoints require authorization check');
-    })
-    ->build();
-```
-
-### Audit Logging
-
-```php
-<?php
-
-use App\Services\Logging\AuditLogger;
-use Guardrail\Config\GuardrailConfig;
-use Guardrail\Config\RuleBuilder;
-
-return GuardrailConfig::create()
-    ->rule('audit-logging', function (RuleBuilder $rule): void {
-        $rule->entryPoints()
-            ->route('routes/admin.php')
-            ->end();
-
-        $rule->mustCall([AuditLogger::class, 'log'])
-            ->atLeastOnce()
-            ->message('Admin operations require audit logging');
-    })
-    ->build();
+])
+    ->atLeastOnce();
 ```
 
 ### Multiple Rules
 
 ```php
-<?php
-
-use App\Services\Auth\Authorizer;
-use App\Services\Logging\AuditLogger;
-use App\Services\RateLimiter;
-use Guardrail\Config\GuardrailConfig;
-use Guardrail\Config\RuleBuilder;
-
 return GuardrailConfig::create()
+    ->paths(['app', 'Modules'])
     ->rule('authorization', function (RuleBuilder $rule): void {
-        $rule->entryPoints()
-            ->route('routes/api.php')
-            ->end();
-
-        $rule->mustCall([Authorizer::class, 'authorize'])
-            ->atLeastOnce();
+        $rule->entryPoints()->route('routes/api.php')->end();
+        $rule->mustCall([Authorizer::class, 'authorize'])->atLeastOnce();
     })
-    ->rule('audit', function (RuleBuilder $rule): void {
-        $rule->entryPoints()
-            ->route('routes/admin.php')
-            ->end();
-
-        $rule->mustCall([AuditLogger::class, 'log'])
-            ->atLeastOnce();
-    })
-    ->rule('rate-limit', function (RuleBuilder $rule): void {
-        $rule->entryPoints()
-            ->route('routes/api.php')
-            ->end();
-
-        $rule->mustCall([RateLimiter::class, 'check'])
-            ->atLeastOnce();
-    })
-    ->build();
+    ->rule('audit-logging', function (RuleBuilder $rule): void {
+        $rule->entryPoints()->route('routes/admin.php')->end();
+        $rule->mustCall([AuditLogger::class, 'log'])->atLeastOnce();
+    });
 ```
 
-## CLI Options
+## CLI
 
 ```bash
-# Specify configuration file
-./vendor/bin/guardrail check --config=path/to/guardrail.config.php
-
-# Specify target directory
-./vendor/bin/guardrail check --path=app
-
-# Run specific rule only
-./vendor/bin/guardrail check --rule=authorization
-
-# Set memory limit (like PHPStan)
-./vendor/bin/guardrail check --memory-limit=1G
-./vendor/bin/guardrail check -m 2G
-./vendor/bin/guardrail check --memory-limit=-1  # Unlimited
-
-# Verbose output
-./vendor/bin/guardrail check -v
+./vendor/bin/guardrail                        # Run with default config
+./vendor/bin/guardrail -c path/to/config.php  # Custom config file
+./vendor/bin/guardrail -r authorization       # Run specific rule only
+./vendor/bin/guardrail -m 2G                  # Set memory limit
+./vendor/bin/guardrail -v                     # Verbose output
 ```
 
 ## CI Integration
 
-### GitHub Actions
-
 ```yaml
+# .github/workflows/guardrail.yml
 name: Guardrail
-
 on: [push, pull_request]
-
 jobs:
-  guardrail:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -351,97 +211,59 @@ jobs:
         with:
           php-version: '8.3'
       - run: composer install
-      - run: ./vendor/bin/guardrail check
+      - run: ./vendor/bin/guardrail
 ```
 
 ## How It Works
 
-1. Parses `routes/api.php` and extracts `[Controller::class, 'method']` route definitions
-2. Builds a call graph from each controller method
-3. Verifies reachability to the specified methods
-4. Reports unreachable entry points
-
-## Supported Patterns
-
-The following call patterns are detected:
-
-### Method Calls
-- ✅ Direct method calls: `$this->authorizer->authorize()`
-- ✅ Property method calls: `$this->service->authorizer->authorize()`
-- ✅ Method injection: `public function handle(Authorizer $auth) { $auth->authorize(); }`
-- ✅ Null-safe operator: `$this->authorizer?->authorize()`
-
-### Static Calls
-- ✅ Class static calls: `Authorizer::authorize()`
-- ✅ `self::method()`: Resolves to current class
-- ✅ `static::method()`: Resolves to current class (including inherited methods)
-- ✅ `parent::method()`: Resolves to parent class
-
-### Invocable Patterns
-- ✅ Variable invocable: `$useCase($input)` → calls `__invoke()`
-- ✅ Property invocable: `($this->useCase)($input)` → calls `__invoke()`
-- ✅ First-class callable creation: `$callable = $this->authorizer->authorize(...)`
-
-### Closure & Arrow Functions
-- ✅ Closure body: `$closure = function() { $this->authorizer->authorize(); }`
-- ✅ Arrow function: `$fn = fn() => $this->authorizer->authorize()`
-
-### Type Resolution
-- ✅ Interface type hints: `AuthorizerInterface $authorizer`
-- ✅ **Interface implementation resolution**: When calling a method on an interface-typed property, all implementing classes are analyzed
-- ✅ Trait method calls: calls through trait methods
-- ✅ Parent class methods: calls through inherited methods
-
-### Control Flow
-- ✅ Conditional: `if/else` branches
-- ✅ Loops: `foreach/for/while` loops
-- ✅ Try-Catch: `try/catch/finally` blocks
-- ✅ Match expression: `match ($x) { 'a' => $this->authorize(), ... }`
-- ✅ Ternary: `$condition ? $this->authorize() : null`
-- ✅ Null coalescing: `$this->auth?->authorize() ?? $this->fallback()`
-
-### Interface Implementation Resolution Example
+### Supported Route Definitions
 
 ```php
-// When your Controller calls a UseCase via interface:
-class OrderController
-{
-    public function __construct(
-        private readonly CreateOrderUseCaseInterface $useCase  // Interface
-    ) {}
+// ✅ Array syntax
+Route::get('/users', [UserController::class, 'index']);
 
-    public function store(): Response
-    {
-        $this->useCase->execute();  // Guardrail traces through to all implementing classes
-    }
-}
+// ✅ Inside groups (middleware, prefix)
+Route::prefix('api')->group(function () {
+    Route::get('/users', [UserController::class, 'index']);  // → /api/users
+});
 
-// Guardrail will find that CreateOrderUseCase::execute() calls authorize()
-class CreateOrderUseCase implements CreateOrderUseCaseInterface
-{
-    public function execute(): void
-    {
-        $this->authorizer->authorize();  // This is detected!
-    }
-}
+// ✅ Nested prefixes
+Route::prefix('api')->group(function () {
+    Route::prefix('v1')->group(function () {
+        Route::get('/users', [UserController::class, 'index']);  // → /api/v1/users
+    });
+});
+
+// ❌ Not yet supported
+Route::resource('/posts', PostController::class);
+Route::apiResource('/comments', CommentController::class);
 ```
 
-## Known Limitations
+### Supported Call Patterns
 
-As a static analysis tool, certain patterns cannot be detected:
+| Pattern | Example |
+|---------|---------|
+| Direct calls | `$this->authorizer->authorize()` |
+| Nested properties | `$this->service->authorizer->authorize()` |
+| Method injection | `function handle(Authorizer $auth) { $auth->authorize(); }` |
+| Null-safe | `$this->authorizer?->authorize()` |
+| Static calls | `Authorizer::authorize()`, `self::`, `static::`, `parent::` |
+| Invocable | `$useCase($input)` → `__invoke()` |
+| Interface resolution | Traces through all implementing classes |
+| Closures | `fn() => $this->authorize()` |
+| Control flow | `if/else`, `match`, `try/catch`, loops |
+
+## Limitations
+
+Due to the nature of static analysis, the following patterns cannot be detected:
 
 | Pattern | Example | Reason |
 |---------|---------|--------|
-| Dynamic method calls | `$method = 'authorize'; $this->authorizer->$method()` | Method name resolved at runtime |
-| `call_user_func` | `call_user_func([$this->authorizer, 'authorize'])` | Target resolved at runtime |
-| Array callback execution | `$callable = [$obj, 'method']; $callable()` | Array callback type not tracked |
-| Array callback in functions | `array_map([$obj, 'method'], $items)` | Callback passed to function |
-| Closure passed as argument | `$this->run(function() { ... })` | Closure body not linked to caller |
-| Local variable types | `$auth = $this->authorizer; $auth->authorize()` | Type inference not implemented |
-| Factory pattern | `$auth = $factory->create(); $auth->authorize()` | Return type tracking not implemented |
-| Chained calls | `$this->holder->getAuthorizer()->authorize()` | Return type tracking not implemented |
-| Variable class names | `$class::method()` | Class name resolved at runtime |
-| Reflection calls | `$method->invoke($obj)` | Reflection resolves at runtime |
+| Dynamic method | `$obj->$method()` | Resolved at runtime |
+| call_user_func | `call_user_func([$obj, 'method'])` | Resolved at runtime |
+| Local variables | `$x = $this->auth; $x->authorize()` | Type inference not implemented |
+| Chained returns | `$this->getAuth()->authorize()` | Return type tracking not implemented |
+| Factory returns | `$factory->create()->authorize()` | Return type tracking not implemented |
 
 ## Requirements
 

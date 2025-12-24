@@ -160,4 +160,42 @@ final class RouteCollectorTest extends TestCase
             $this->assertNotNull($ep->routePath, "Entry point {$ep->getIdentifier()} should have a route path");
         }
     }
+
+    public function testExtractsPrefixedRoutePath(): void
+    {
+        $collector = (new RouteCollector())->routeFile('routes/api.php');
+
+        $entryPoints = iterator_to_array($collector->collect($this->fixturesPath), preserve_keys: false);
+
+        // Find the entry point for OrderController::index (inside Route::prefix('orders'))
+        $orderIndexEntryPoint = null;
+        foreach ($entryPoints as $ep) {
+            if ($ep->className === 'App\\Http\\Controllers\\OrderController' && $ep->methodName === 'index') {
+                $orderIndexEntryPoint = $ep;
+                break;
+            }
+        }
+
+        $this->assertNotNull($orderIndexEntryPoint);
+        $this->assertEquals('/orders', $orderIndexEntryPoint->routePath);
+    }
+
+    public function testExtractsNestedPrefixedRoutePath(): void
+    {
+        $collector = (new RouteCollector())->routeFile('routes/api.php');
+
+        $entryPoints = iterator_to_array($collector->collect($this->fixturesPath), preserve_keys: false);
+
+        // Find the entry point for InvoiceController::index (inside Route::prefix('billing'))
+        $invoiceIndexEntryPoint = null;
+        foreach ($entryPoints as $ep) {
+            if ($ep->className === 'App\\Modules\\Billing\\Http\\Controllers\\InvoiceController' && $ep->methodName === 'index') {
+                $invoiceIndexEntryPoint = $ep;
+                break;
+            }
+        }
+
+        $this->assertNotNull($invoiceIndexEntryPoint);
+        $this->assertEquals('/billing/invoices', $invoiceIndexEntryPoint->routePath);
+    }
 }
