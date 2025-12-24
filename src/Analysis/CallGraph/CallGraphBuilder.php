@@ -669,11 +669,7 @@ final class CallAnalyzerVisitor extends NodeVisitorAbstract
             $propertyName = $var->name->toString();
 
             // $this->property
-            if (
-                $var->var instanceof Node\Expr\Variable
-                && $var->var->name === 'this'
-                && $currentClass !== null
-            ) {
+            if ($var->var instanceof Node\Expr\Variable && $var->var->name === 'this' && $currentClass !== null) {
                 return $this->typeRegistry->resolvePropertyType($currentClass, $propertyName);
             }
 
