@@ -117,4 +117,76 @@ final class ClassHierarchyTest extends TestCase
     {
         $this->assertNull($this->hierarchy->resolveMethodClass('App\\MyClass', 'unknownMethod'));
     }
+
+    // ==========================================
+    // Method Return Type Tests
+    // ==========================================
+
+    public function testAddAndGetMethodReturnType(): void
+    {
+        $this->hierarchy->addMethodReturnType('App\\Factory', 'create', 'App\\Service');
+
+        $this->assertSame('App\\Service', $this->hierarchy->getMethodReturnType('App\\Factory', 'create'));
+        $this->assertNull($this->hierarchy->getMethodReturnType('App\\Factory', 'unknown'));
+        $this->assertNull($this->hierarchy->getMethodReturnType('App\\Unknown', 'create'));
+    }
+
+    public function testResolveMethodReturnTypeFromSameClass(): void
+    {
+        $this->hierarchy->addMethodReturnType('App\\Factory', 'create', 'App\\Service');
+
+        $this->assertSame('App\\Service', $this->hierarchy->resolveMethodReturnType('App\\Factory', 'create'));
+    }
+
+    public function testResolveMethodReturnTypeFromTrait(): void
+    {
+        $this->hierarchy->addMethodReturnType('App\\FactoryTrait', 'create', 'App\\Service');
+        $this->hierarchy->setClassTraits('App\\Factory', ['App\\FactoryTrait']);
+
+        $this->assertSame('App\\Service', $this->hierarchy->resolveMethodReturnType('App\\Factory', 'create'));
+    }
+
+    public function testResolveMethodReturnTypeFromParent(): void
+    {
+        $this->hierarchy->addMethodReturnType('App\\AbstractFactory', 'create', 'App\\Service');
+        $this->hierarchy->setClassParent('App\\ConcreteFactory', 'App\\AbstractFactory');
+
+        $this->assertSame('App\\Service', $this->hierarchy->resolveMethodReturnType('App\\ConcreteFactory', 'create'));
+    }
+
+    public function testResolveMethodReturnTypeFromGrandparent(): void
+    {
+        $this->hierarchy->addMethodReturnType('App\\BaseFactory', 'create', 'App\\Service');
+        $this->hierarchy->setClassParent('App\\AbstractFactory', 'App\\BaseFactory');
+        $this->hierarchy->setClassParent('App\\ConcreteFactory', 'App\\AbstractFactory');
+
+        $this->assertSame('App\\Service', $this->hierarchy->resolveMethodReturnType('App\\ConcreteFactory', 'create'));
+    }
+
+    public function testResolveMethodReturnTypePrioritizesOwnOverTrait(): void
+    {
+        $this->hierarchy->addMethodReturnType('App\\Factory', 'create', 'App\\ConcreteService');
+        $this->hierarchy->addMethodReturnType('App\\FactoryTrait', 'create', 'App\\AbstractService');
+        $this->hierarchy->setClassTraits('App\\Factory', ['App\\FactoryTrait']);
+
+        $this->assertSame('App\\ConcreteService', $this->hierarchy->resolveMethodReturnType('App\\Factory', 'create'));
+    }
+
+    public function testResolveMethodReturnTypePrioritizesTraitOverParent(): void
+    {
+        $this->hierarchy->addMethodReturnType('App\\FactoryTrait', 'create', 'App\\TraitService');
+        $this->hierarchy->addMethodReturnType('App\\AbstractFactory', 'create', 'App\\ParentService');
+        $this->hierarchy->setClassTraits('App\\ConcreteFactory', ['App\\FactoryTrait']);
+        $this->hierarchy->setClassParent('App\\ConcreteFactory', 'App\\AbstractFactory');
+
+        $this->assertSame('App\\TraitService', $this->hierarchy->resolveMethodReturnType(
+            'App\\ConcreteFactory',
+            'create',
+        ));
+    }
+
+    public function testResolveMethodReturnTypeReturnsNullForUnknown(): void
+    {
+        $this->assertNull($this->hierarchy->resolveMethodReturnType('App\\Factory', 'unknownMethod'));
+    }
 }

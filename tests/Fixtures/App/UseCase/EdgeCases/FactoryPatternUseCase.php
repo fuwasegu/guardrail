@@ -16,7 +16,7 @@ final class AuthorizerFactory
 
 /**
  * Edge case: authorize() is called via factory method return
- * [LIMITATION]: Return types from method calls are not tracked
+ * Supported via data flow analysis (type tracked from method return type)
  */
 final class FactoryPatternUseCase
 {

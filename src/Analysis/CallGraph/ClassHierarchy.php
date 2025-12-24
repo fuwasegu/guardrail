@@ -21,6 +21,9 @@ final class ClassHierarchy
     /** @var array<string, string> Method => defining class (where method is defined) */
     private array $methodDefinitions = [];
 
+    /** @var array<string, string> Method => return type (ClassName::methodName => Type) */
+    private array $methodReturnTypes = [];
+
     /** @var array<string, true> Traits (for distinguishing from classes) */
     private array $traits = [];
 
@@ -160,6 +163,46 @@ final class ClassHierarchy
         $parent = $this->getClassParent($className);
         if ($parent !== null) {
             return $this->resolveMethodClass($parent, $methodName);
+        }
+
+        return null;
+    }
+
+    public function addMethodReturnType(string $className, string $methodName, string $returnType): void
+    {
+        $key = $className . '::' . $methodName;
+        $this->methodReturnTypes[$key] = $returnType;
+    }
+
+    public function getMethodReturnType(string $className, string $methodName): ?string
+    {
+        $key = $className . '::' . $methodName;
+        return $this->methodReturnTypes[$key] ?? null;
+    }
+
+    /**
+     * Resolve method return type considering inheritance (class, traits, parent).
+     */
+    public function resolveMethodReturnType(string $className, string $methodName): ?string
+    {
+        // Check if return type is defined in the class itself
+        $type = $this->getMethodReturnType($className, $methodName);
+        if ($type !== null) {
+            return $type;
+        }
+
+        // Check traits
+        foreach ($this->getClassTraits($className) as $trait) {
+            $type = $this->getMethodReturnType($trait, $methodName);
+            if ($type !== null) {
+                return $type;
+            }
+        }
+
+        // Check parent class
+        $parent = $this->getClassParent($className);
+        if ($parent !== null) {
+            return $this->resolveMethodReturnType($parent, $methodName);
         }
 
         return null;

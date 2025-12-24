@@ -73,9 +73,9 @@ final class EdgeCaseAnalysisTest extends TestCase
         $this->assertTrue($results[0]->hasViolations(), 'call_user_func cannot be detected - expected violation');
     }
 
-    public function testLocalVariableCallIsNotDetected(): void
+    public function testLocalVariableCallIsDetected(): void
     {
-        // [LIMITATION]: Local variable assignment types are not tracked
+        // Local variable assignment types ARE tracked via data flow analysis
         $rules = GuardrailConfig::create()
             ->rule('test', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\EdgeCases\LocalVariableCallUseCase');
@@ -85,13 +85,13 @@ final class EdgeCaseAnalysisTest extends TestCase
 
         $results = $this->analyzer->analyze($rules);
 
-        // Expected: Violation (local variable type not tracked)
-        $this->assertTrue($results[0]->hasViolations(), 'Local variable types not tracked - expected violation');
+        // Expected: Pass - local variable types are tracked
+        $this->assertFalse($results[0]->hasViolations(), 'Local variable types should be tracked');
     }
 
-    public function testFactoryPatternIsNotDetected(): void
+    public function testFactoryPatternIsDetected(): void
     {
-        // [LIMITATION]: Return types from method calls are not tracked
+        // Return types from method calls ARE tracked via data flow analysis
         $rules = GuardrailConfig::create()
             ->rule('test', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\EdgeCases\FactoryPatternUseCase');
@@ -101,13 +101,13 @@ final class EdgeCaseAnalysisTest extends TestCase
 
         $results = $this->analyzer->analyze($rules);
 
-        // Expected: Violation (factory return type not tracked)
-        $this->assertTrue($results[0]->hasViolations(), 'Factory pattern not tracked - expected violation');
+        // Expected: Pass - factory return type is tracked
+        $this->assertFalse($results[0]->hasViolations(), 'Factory pattern should be tracked');
     }
 
-    public function testChainedCallIsNotDetected(): void
+    public function testChainedCallIsDetected(): void
     {
-        // [LIMITATION]: Chained method call types cannot be resolved
+        // Chained method call types ARE resolved via data flow analysis
         $rules = GuardrailConfig::create()
             ->rule('test', static function (RuleBuilder $rule): void {
                 $rule->entryPoints()->namespace('App\UseCase\EdgeCases\ChainedCallUseCase');
@@ -117,8 +117,8 @@ final class EdgeCaseAnalysisTest extends TestCase
 
         $results = $this->analyzer->analyze($rules);
 
-        // Expected: Violation (chained call type not resolved)
-        $this->assertTrue($results[0]->hasViolations(), 'Chained calls not tracked - expected violation');
+        // Expected: Pass - chained call type is resolved
+        $this->assertFalse($results[0]->hasViolations(), 'Chained calls should be tracked');
     }
 
     // ==========================================

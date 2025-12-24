@@ -258,9 +258,16 @@ final class DefinitionCollectorVisitor extends NodeVisitorAbstract
         // Mark as trait for later lookup
         $this->classHierarchy->markAsTrait($currentClass);
 
-        // Record method definitions in trait
+        // Record method definitions and return types in trait
         foreach ($node->getMethods() as $method) {
-            $this->classHierarchy->addMethodDefinition($currentClass, $method->name->toString());
+            $methodName = $method->name->toString();
+            $this->classHierarchy->addMethodDefinition($currentClass, $methodName);
+
+            // Collect return type
+            $returnType = $this->resolveType($method->returnType);
+            if ($returnType !== null) {
+                $this->classHierarchy->addMethodReturnType($currentClass, $methodName, $returnType);
+            }
         }
 
         // Collect property types in trait
@@ -292,9 +299,16 @@ final class DefinitionCollectorVisitor extends NodeVisitorAbstract
         // Mark as interface
         $this->classHierarchy->markAsInterface($currentClass);
 
-        // Record method definitions in interface
+        // Record method definitions and return types in interface
         foreach ($node->getMethods() as $method) {
-            $this->classHierarchy->addMethodDefinition($currentClass, $method->name->toString());
+            $methodName = $method->name->toString();
+            $this->classHierarchy->addMethodDefinition($currentClass, $methodName);
+
+            // Collect return type
+            $returnType = $this->resolveType($method->returnType);
+            if ($returnType !== null) {
+                $this->classHierarchy->addMethodReturnType($currentClass, $methodName, $returnType);
+            }
         }
     }
 
@@ -346,12 +360,19 @@ final class DefinitionCollectorVisitor extends NodeVisitorAbstract
             }
         }
 
-        // Record method definitions and collect constructor promoted properties
+        // Record method definitions, return types, and collect constructor promoted properties
         foreach ($node->getMethods() as $method) {
-            $this->classHierarchy->addMethodDefinition($currentClass, $method->name->toString());
+            $methodName = $method->name->toString();
+            $this->classHierarchy->addMethodDefinition($currentClass, $methodName);
+
+            // Collect return type
+            $returnType = $this->resolveType($method->returnType);
+            if ($returnType !== null) {
+                $this->classHierarchy->addMethodReturnType($currentClass, $methodName, $returnType);
+            }
 
             // Collect constructor promoted properties
-            if ($method->name->toString() === '__construct') {
+            if ($methodName === '__construct') {
                 foreach ($method->params as $param) {
                     if ($param->flags === 0 || !$param->var instanceof Node\Expr\Variable) {
                         continue;
@@ -413,6 +434,11 @@ final class CallAnalyzerVisitor extends NodeVisitorAbstract
 
         if ($node instanceof Node\Stmt\ClassMethod) {
             $this->enterMethod($node);
+        }
+
+        // Track variable assignments for data flow analysis
+        if ($node instanceof Node\Expr\Assign && $this->currentMethod !== null) {
+            $this->processAssignment($node);
         }
 
         if (
@@ -638,23 +664,26 @@ final class CallAnalyzerVisitor extends NodeVisitorAbstract
     {
         $currentClass = $this->currentClass;
 
-        // $this->property->method()
-        if ($var instanceof Node\Expr\PropertyFetch) {
+        // $this->property->method() or $this->obj->property->method() (nested property chain)
+        if ($var instanceof Node\Expr\PropertyFetch && $var->name instanceof Node\Identifier) {
+            $propertyName = $var->name->toString();
+
+            // $this->property
             if (
                 $var->var instanceof Node\Expr\Variable
                 && $var->var->name === 'this'
-                && $var->name instanceof Node\Identifier
+                && $currentClass !== null
             ) {
-                $propertyName = $var->name->toString();
-
-                // Look up property type from TypeRegistry (works for traits too)
-                if ($currentClass !== null) {
-                    $type = $this->typeRegistry->resolvePropertyType($currentClass, $propertyName);
-                    if ($type !== null) {
-                        return $type;
-                    }
-                }
+                return $this->typeRegistry->resolvePropertyType($currentClass, $propertyName);
             }
+
+            // $this->obj->property or $var->property (nested/chained property access)
+            $ownerClass = $this->resolveCalleeClass($var->var);
+            if ($ownerClass !== null) {
+                return $this->typeRegistry->resolvePropertyType($ownerClass, $propertyName);
+            }
+
+            return null;
         }
 
         // $this->method() - call on same class
@@ -665,6 +694,21 @@ final class CallAnalyzerVisitor extends NodeVisitorAbstract
         // $variable->method()
         if ($var instanceof Node\Expr\Variable && is_string($var->name)) {
             return $this->currentMethodVariables[$var->name] ?? null;
+        }
+
+        // $obj->getX()->method() - chained method calls
+        if ($var instanceof Node\Expr\MethodCall || $var instanceof Node\Expr\NullsafeMethodCall) {
+            if (!$var->name instanceof Node\Identifier) {
+                return null;
+            }
+
+            $innerClass = $this->resolveCalleeClass($var->var);
+            if ($innerClass === null) {
+                return null;
+            }
+
+            $methodName = $var->name->toString();
+            return $this->classHierarchy->resolveMethodReturnType($innerClass, $methodName);
         }
 
         return null;
@@ -678,6 +722,128 @@ final class CallAnalyzerVisitor extends NodeVisitorAbstract
 
         if ($var instanceof Node\Expr\Variable && is_string($var->name)) {
             return '$' . $var->name;
+        }
+
+        return null;
+    }
+
+    /**
+     * Track variable assignments for data flow analysis.
+     * Updates $currentMethodVariables with the type of the assigned expression.
+     */
+    private function processAssignment(Node\Expr\Assign $node): void
+    {
+        // Only track simple variable assignments: $var = ...
+        if (!$node->var instanceof Node\Expr\Variable) {
+            return;
+        }
+
+        if (!is_string($node->var->name)) {
+            return; // Skip dynamic variable names like $$var
+        }
+
+        $variableName = $node->var->name;
+        $type = $this->resolveExpressionType($node->expr);
+
+        if ($type !== null) {
+            $this->currentMethodVariables[$variableName] = $type;
+        }
+    }
+
+    /**
+     * Resolve the type of an expression for data flow analysis.
+     */
+    private function resolveExpressionType(Node\Expr $expr): ?string
+    {
+        // Case 1: new ClassName()
+        if ($expr instanceof Node\Expr\New_) {
+            if ($expr->class instanceof Node\Name) {
+                return $this->resolveName($expr->class);
+            }
+            return null; // Dynamic class: new $className()
+        }
+
+        // Case 2: $this->property or $this->obj->property (nested property access)
+        if ($expr instanceof Node\Expr\PropertyFetch && $expr->name instanceof Node\Identifier) {
+            $propertyName = $expr->name->toString();
+
+            // $this->property
+            if (
+                $expr->var instanceof Node\Expr\Variable
+                && $expr->var->name === 'this'
+                && $this->currentClass !== null
+            ) {
+                return $this->typeRegistry->resolvePropertyType($this->currentClass, $propertyName);
+            }
+
+            // $this->obj->property or $var->property (nested/chained property access)
+            $ownerClass = $this->resolveCalleeClass($expr->var);
+            if ($ownerClass !== null) {
+                return $this->typeRegistry->resolvePropertyType($ownerClass, $propertyName);
+            }
+
+            return null;
+        }
+
+        // Case 3: $otherVar (copy type from existing variable)
+        if ($expr instanceof Node\Expr\Variable && is_string($expr->name)) {
+            return $this->currentMethodVariables[$expr->name] ?? null;
+        }
+
+        // Case 4: $this->method() or $var->method() - instance method call
+        if ($expr instanceof Node\Expr\MethodCall || $expr instanceof Node\Expr\NullsafeMethodCall) {
+            if (!$expr->name instanceof Node\Identifier) {
+                return null;
+            }
+
+            $calleeClass = $this->resolveCalleeClass($expr->var);
+            if ($calleeClass === null) {
+                return null;
+            }
+
+            $methodName = $expr->name->toString();
+            return $this->classHierarchy->resolveMethodReturnType($calleeClass, $methodName);
+        }
+
+        // Case 5: ClassName::staticMethod()
+        if ($expr instanceof Node\Expr\StaticCall) {
+            if (!$expr->class instanceof Node\Name || !$expr->name instanceof Node\Identifier) {
+                return null;
+            }
+
+            $className = $this->resolveName($expr->class);
+            $methodName = $expr->name->toString();
+            return $this->classHierarchy->resolveMethodReturnType($className, $methodName);
+        }
+
+        // Case 6: Ternary - take first non-null type (conservative)
+        if ($expr instanceof Node\Expr\Ternary) {
+            $ifType = $expr->if !== null ? $this->resolveExpressionType($expr->if) : null;
+            $elseType = $this->resolveExpressionType($expr->else);
+            return $ifType ?? $elseType;
+        }
+
+        // Case 7: clone $expr - preserves type
+        if ($expr instanceof Node\Expr\Clone_) {
+            return $this->resolveExpressionType($expr->expr);
+        }
+
+        // Case 8: $x ?? $y - null coalescing (take first non-null type)
+        if ($expr instanceof Node\Expr\BinaryOp\Coalesce) {
+            $leftType = $this->resolveExpressionType($expr->left);
+            $rightType = $this->resolveExpressionType($expr->right);
+            return $leftType ?? $rightType;
+        }
+
+        // Case 9: self::$property or ClassName::$property - static property
+        if ($expr instanceof Node\Expr\StaticPropertyFetch && $expr->name instanceof Node\VarLikeIdentifier) {
+            if (!$expr->class instanceof Node\Name) {
+                return null;
+            }
+
+            $className = $this->resolveName($expr->class);
+            $propertyName = $expr->name->toString();
+            return $this->typeRegistry->resolvePropertyType($className, $propertyName);
         }
 
         return null;

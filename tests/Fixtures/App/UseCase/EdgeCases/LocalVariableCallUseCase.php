@@ -8,7 +8,7 @@ use App\Auth\Authorizer;
 
 /**
  * Edge case: authorize() is called via locally instantiated variable
- * [LIMITATION]: Local variable assignment types are not tracked
+ * Supported via data flow analysis (type tracked from new expression)
  */
 final class LocalVariableCallUseCase
 {

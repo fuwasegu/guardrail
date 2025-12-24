@@ -20,7 +20,7 @@ final class AuthorizerHolder
 
 /**
  * Edge case: authorize() is called via method chaining
- * [LIMITATION]: Chained method call types cannot be resolved
+ * Supported via data flow analysis (chained return types are resolved)
  */
 final class ChainedCallUseCase
 {

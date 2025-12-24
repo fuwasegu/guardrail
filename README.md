@@ -258,10 +258,17 @@ Route::apiResource('/comments', CommentController::class);
 | Method injection | `function handle(Authorizer $auth) { $auth->authorize(); }` |
 | Null-safe | `$this->authorizer?->authorize()` |
 | Static calls | `Authorizer::authorize()`, `self::`, `static::`, `parent::` |
+| Static properties | `$x = self::$auth; $x->authorize()` |
 | Invocable | `$useCase($input)` → `__invoke()` |
 | Interface resolution | Traces through all implementing classes |
 | Closures | `fn() => $this->authorize()` |
 | Control flow | `if/else`, `match`, `try/catch`, loops |
+| Local variables | `$x = new Auth(); $x->authorize()` |
+| Factory returns | `$auth = Factory::create(); $auth->authorize()` |
+| Chained calls | `$this->holder->getAuth()->authorize()` |
+| Mixed chains | `$this->obj->prop->getAuth()->authorize()` |
+| Clone | `$x = clone $this->auth; $x->authorize()` |
+| Null coalescing | `$x = $this->auth ?? new Auth(); $x->authorize()` |
 
 ## Limitations
 
@@ -271,9 +278,8 @@ Due to the nature of static analysis, the following patterns cannot be detected:
 |---------|---------|--------|
 | Dynamic method | `$obj->$method()` | Resolved at runtime |
 | call_user_func | `call_user_func([$obj, 'method'])` | Resolved at runtime |
-| Local variables | `$x = $this->auth; $x->authorize()` | Type inference not implemented |
-| Chained returns | `$this->getAuth()->authorize()` | Return type tracking not implemented |
-| Factory returns | `$factory->create()->authorize()` | Return type tracking not implemented |
+| Array elements | `$arr[0]->authorize()` | Array type tracking not implemented |
+| Null coalescing assign | `$this->x ??= new Auth()` | Compound assignment not tracked |
 
 ## Requirements
 
