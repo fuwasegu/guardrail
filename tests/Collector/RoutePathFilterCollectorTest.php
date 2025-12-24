@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Guardrail\Tests\Collector;
 
+use Guardrail\Collector\CollectorInterface;
 use Guardrail\Collector\EntryPoint;
 use Guardrail\Collector\RoutePathFilterCollector;
-use Guardrail\Collector\CollectorInterface;
 use PHPUnit\Framework\TestCase;
 
 final class RoutePathFilterCollectorTest extends TestCase
