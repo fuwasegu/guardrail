@@ -80,13 +80,22 @@ final class CheckCommand extends Command
 
         $io->text(sprintf('Loading configuration from <info>%s</info>', $configPath));
 
-        // Load rules
+        // Load full configuration (rules + scan settings)
         try {
-            $rules = GuardrailConfig::loadFromFile($configPath);
+            $config = GuardrailConfig::loadConfigFromFile($configPath);
+            $rules = $config->rules;
+            $scanConfig = $config->scanConfig;
         } catch (\Throwable $e) {
             $io->error(sprintf('Failed to load configuration: %s', $e->getMessage()));
             return Command::FAILURE;
         }
+
+        // Show scan configuration
+        $io->text(sprintf(
+            'Scanning: <info>%s</info>, excluding: <comment>%s</comment>',
+            implode(', ', $scanConfig->paths),
+            implode(', ', $scanConfig->excludes),
+        ));
 
         // Filter rules if specified
         /** @var list<string> $ruleFilter */
@@ -130,7 +139,7 @@ final class CheckCommand extends Command
         });
 
         try {
-            $results = $analyzer->analyze($rules);
+            $results = $analyzer->analyze($rules, $scanConfig);
             if ($progressBar !== null) {
                 $progressBar->finish();
                 $output->writeln('');

@@ -100,17 +100,35 @@ final class RouteCollector implements CollectorInterface
                     return;
                 }
 
+                // Extract route path from first argument (e.g., '/users')
+                $routePath = $this->extractRoutePath($node);
+
                 // Extract [Controller::class, 'method'] from arguments
                 foreach ($node->args as $arg) {
                     if (!$arg instanceof Node\Arg) {
                         continue;
                     }
 
-                    $entryPoint = $this->extractControllerAction($arg->value);
+                    $entryPoint = $this->extractControllerAction($arg->value, $routePath);
                     if ($entryPoint !== null) {
                         $this->entryPoints[] = $entryPoint;
                     }
                 }
+            }
+
+            private function extractRoutePath(Node\Expr\MethodCall|Node\Expr\StaticCall $node): ?string
+            {
+                $args = $node->args;
+                if ($args === [] || !$args[0] instanceof Node\Arg) {
+                    return null;
+                }
+
+                $firstArg = $args[0]->value;
+                if ($firstArg instanceof Node\Scalar\String_) {
+                    return $firstArg->value;
+                }
+
+                return null;
             }
 
             private function isRouteCall(Node\Expr\MethodCall|Node\Expr\StaticCall $node): bool
@@ -137,7 +155,7 @@ final class RouteCollector implements CollectorInterface
                 return in_array($methodName, $routeMethods, strict: true);
             }
 
-            private function extractControllerAction(Node\Expr $expr): ?EntryPoint
+            private function extractControllerAction(Node\Expr $expr, ?string $routePath): ?EntryPoint
             {
                 // Looking for array syntax: [Controller::class, 'method']
                 if (!$expr instanceof Node\Expr\Array_) {
@@ -167,11 +185,16 @@ final class RouteCollector implements CollectorInterface
                 }
                 $methodName = $secondItem->value->value;
 
+                $description = $routePath !== null
+                    ? "Route: {$routePath} → {$controllerClass}::{$methodName}"
+                    : "Route: {$controllerClass}::{$methodName}";
+
                 return new EntryPoint(
                     className: $controllerClass,
                     methodName: $methodName,
                     filePath: $this->resolveControllerFilePath($controllerClass),
-                    description: "Route: {$controllerClass}::{$methodName}",
+                    description: $description,
+                    routePath: $routePath,
                 );
             }
 

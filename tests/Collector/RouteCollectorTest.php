@@ -128,4 +128,36 @@ final class RouteCollectorTest extends TestCase
         // Expected: 5 UserController + 2 OrderController + 3 InvoiceController = 10
         $this->assertCount(10, $entryPoints);
     }
+
+    public function testExtractsRoutePath(): void
+    {
+        $collector = (new RouteCollector())->routeFile('routes/api.php');
+
+        $entryPoints = iterator_to_array($collector->collect($this->fixturesPath), preserve_keys: false);
+
+        // Find the entry point for UserController::index
+        $userIndexEntryPoint = null;
+        foreach ($entryPoints as $ep) {
+            if ($ep->className === 'App\\Http\\Controllers\\UserController' && $ep->methodName === 'index') {
+                $userIndexEntryPoint = $ep;
+                break;
+            }
+        }
+
+        $this->assertNotNull($userIndexEntryPoint);
+        $this->assertEquals('/users', $userIndexEntryPoint->routePath);
+        $this->assertStringContainsString('/users', $userIndexEntryPoint->description);
+    }
+
+    public function testEntryPointsHaveRoutePath(): void
+    {
+        $collector = (new RouteCollector())->routeFile('routes/api.php');
+
+        $entryPoints = iterator_to_array($collector->collect($this->fixturesPath), preserve_keys: false);
+
+        // All entry points from route files should have route paths
+        foreach ($entryPoints as $ep) {
+            $this->assertNotNull($ep->routePath, "Entry point {$ep->getIdentifier()} should have a route path");
+        }
+    }
 }

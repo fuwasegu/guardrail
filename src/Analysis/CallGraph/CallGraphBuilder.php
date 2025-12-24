@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Guardrail\Analysis\CallGraph;
 
+use Guardrail\Config\ScanConfig;
 use PhpParser\Node;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitorAbstract;
@@ -36,11 +37,12 @@ final class CallGraphBuilder
         $this->typeRegistry = new TypeRegistry($this->classHierarchy);
     }
 
-    public function build(string $basePath): CallGraph
+    public function build(string $basePath, ?ScanConfig $scanConfig = null): CallGraph
     {
+        $scanConfig ??= ScanConfig::default();
+
         $parser = (new ParserFactory())->createForNewestSupportedVersion();
-        $finder = new Finder();
-        $finder->files()->in($basePath)->name('*.php');
+        $finder = $this->createFinder($basePath, $scanConfig);
 
         // Collect all ASTs first
         $allAsts = [];
@@ -116,6 +118,38 @@ final class CallGraphBuilder
                 $this->callGraph->addCall($call);
             }
         }
+    }
+
+    /**
+     * Create a Finder configured with scan paths and excludes.
+     */
+    private function createFinder(string $basePath, ScanConfig $scanConfig): Finder
+    {
+        $finder = new Finder();
+        $finder->files()->name('*.php');
+
+        // Determine which paths to scan
+        $scanPaths = [];
+        foreach ($scanConfig->paths as $path) {
+            $fullPath = $basePath . DIRECTORY_SEPARATOR . $path;
+            if (is_dir($fullPath)) {
+                $scanPaths[] = $fullPath;
+            }
+        }
+
+        // If no valid paths found, fall back to base path
+        if ($scanPaths === []) {
+            $scanPaths[] = $basePath;
+        }
+
+        $finder->in($scanPaths);
+
+        // Apply exclude patterns
+        foreach ($scanConfig->excludes as $exclude) {
+            $finder->notPath($exclude);
+        }
+
+        return $finder;
     }
 
     /**

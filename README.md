@@ -109,6 +109,39 @@ Route::resource('/posts', PostController::class);
 Route::apiResource('/comments', CommentController::class);
 ```
 
+## Scan Configuration
+
+By default, Guardrail scans `src` and `app` directories, excluding `vendor`. You can customize this in your configuration:
+
+```php
+<?php
+// guardrail.config.php
+
+use Guardrail\Config\GuardrailConfig;
+use Guardrail\Config\RuleBuilder;
+
+return GuardrailConfig::create()
+    // Specify directories to scan (relative to project root)
+    ->paths(['src', 'app', 'modules'])
+
+    // Exclude directories/patterns
+    ->exclude(['vendor', 'tests', 'database/migrations'])
+
+    ->rule('authorization', function (RuleBuilder $rule): void {
+        // ... rule configuration
+    })
+    ->build();
+```
+
+### Default Behavior
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `paths` | `['src', 'app']` | Directories to scan for PHP files |
+| `exclude` | `['vendor']` | Patterns to exclude from scanning |
+
+> **Performance Tip**: Limiting scan paths significantly improves analysis speed. Only scan directories that contain code relevant to your rules.
+
 ## Configuration Reference
 
 ### Specifying Entry Points
@@ -144,6 +177,28 @@ $rule->entryPoints()
     ->namespace('App\\Http\\Controllers\\HealthCheckController')
     ->end();
 ```
+
+#### Excluding Specific Route Paths
+
+You can exclude specific API paths from analysis using glob-like patterns:
+
+```php
+$rule->entryPoints()
+    ->route('routes/api.php')
+    ->excludeRoutes(
+        '/api/login',              // Exact match
+        '/api/logout',             // Exact match
+        '/health',                 // Health check endpoint
+        '/api/public/*',           // Single segment wildcard
+        '/api/webhooks/**',        // Multi-segment wildcard
+    )
+    ->end();
+```
+
+**Pattern syntax:**
+- `/api/login` - Exact match
+- `/api/*` - Matches single path segment (e.g., `/api/users`, `/api/orders`)
+- `/api/**` - Matches any path segments (e.g., `/api/users/123`, `/api/admin/users/list`)
 
 ### Required Method Calls
 

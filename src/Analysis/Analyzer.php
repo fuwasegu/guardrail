@@ -10,6 +10,7 @@ use Guardrail\Collector\EntryPoint;
 use Guardrail\Config\MethodReference;
 use Guardrail\Config\PathCondition;
 use Guardrail\Config\Rule;
+use Guardrail\Config\ScanConfig;
 
 /**
  * Main analyzer that checks rules against the codebase.
@@ -34,14 +35,15 @@ final class Analyzer
 
     /**
      * @param list<Rule> $rules
+     * @param ScanConfig|null $scanConfig Optional scan configuration (defaults to src/app, excludes vendor)
      * @return list<RuleResult>
      */
-    public function analyze(array $rules): array
+    public function analyze(array $rules, ?ScanConfig $scanConfig = null): array
     {
         $this->reportProgress(AnalyzerProgress::buildingCallGraph());
 
         // Build call graph once for the analysis
-        $callGraph = (new CallGraphBuilder())->build($this->basePath);
+        $callGraph = (new CallGraphBuilder())->build($this->basePath, $scanConfig);
 
         $this->reportProgress(AnalyzerProgress::callGraphBuilt());
 

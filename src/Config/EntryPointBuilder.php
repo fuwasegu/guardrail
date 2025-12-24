@@ -9,6 +9,7 @@ use Guardrail\Collector\CompositeCollector;
 use Guardrail\Collector\ExcludingCollector;
 use Guardrail\Collector\NamespaceCollector;
 use Guardrail\Collector\RouteCollector;
+use Guardrail\Collector\RoutePathFilterCollector;
 
 /**
  * Fluent builder for configuring entry point collectors.
@@ -20,6 +21,9 @@ final class EntryPointBuilder
 
     /** @var list<CollectorInterface> */
     private array $exclusions = [];
+
+    /** @var list<string> */
+    private array $excludedRoutePaths = [];
 
     private ?NamespaceCollector $currentNamespaceCollector = null;
 
@@ -94,6 +98,24 @@ final class EntryPointBuilder
         return $this;
     }
 
+    /**
+     * Exclude specific route paths from analysis.
+     *
+     * Supports glob-like patterns:
+     * - '/api/login' - exact match
+     * - '/api/*' - matches single segment (e.g., '/api/users', '/api/orders')
+     * - '/api/**' - matches any segments (e.g., '/api/users/123', '/api/admin/users')
+     *
+     * @param string ...$patterns Route path patterns to exclude
+     */
+    public function excludeRoutes(string ...$patterns): self
+    {
+        foreach ($patterns as $pattern) {
+            $this->excludedRoutePaths[] = $pattern;
+        }
+        return $this;
+    }
+
     public function or(): self
     {
         $this->inExcluding = false;
@@ -117,15 +139,20 @@ final class EntryPointBuilder
             default => CompositeCollector::or(...$this->collectors),
         };
 
-        if ($this->exclusions === []) {
-            return $baseCollector;
+        // Apply namespace/class exclusions
+        if ($this->exclusions !== []) {
+            $exclusionCollector = match (count($this->exclusions)) {
+                1 => $this->exclusions[0],
+                default => CompositeCollector::or(...$this->exclusions),
+            };
+            $baseCollector = new ExcludingCollector($baseCollector, $exclusionCollector);
         }
 
-        $exclusionCollector = match (count($this->exclusions)) {
-            1 => $this->exclusions[0],
-            default => CompositeCollector::or(...$this->exclusions),
-        };
+        // Apply route path exclusions
+        if ($this->excludedRoutePaths !== []) {
+            $baseCollector = new RoutePathFilterCollector($baseCollector, $this->excludedRoutePaths);
+        }
 
-        return new ExcludingCollector($baseCollector, $exclusionCollector);
+        return $baseCollector;
     }
 }
