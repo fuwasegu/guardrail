@@ -52,10 +52,11 @@ final class EntryPointBuilder
      * Add entry points from a Laravel route file.
      *
      * @param string $routeFile Path to route file relative to project root (e.g., 'routes/api.php')
+     * @param string $prefix Base prefix applied to all routes (e.g., '/api' from RouteServiceProvider)
      */
-    public function route(string $routeFile): self
+    public function route(string $routeFile, string $prefix = ''): self
     {
-        $collector = (new RouteCollector())->routeFile($routeFile);
+        $collector = (new RouteCollector())->routeFile($routeFile, $prefix);
 
         if ($this->inExcluding) {
             $this->exclusions[] = $collector;

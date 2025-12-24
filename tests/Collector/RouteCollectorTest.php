@@ -201,4 +201,87 @@ final class RouteCollectorTest extends TestCase
         $this->assertNotNull($invoiceIndexEntryPoint);
         $this->assertEquals('/billing/invoices', $invoiceIndexEntryPoint->routePath);
     }
+
+    public function testAppliesBasePrefix(): void
+    {
+        // Base prefix simulates RouteServiceProvider's prefix setting
+        $collector = (new RouteCollector())->routeFile('routes/api.php', prefix: '/api');
+
+        $entryPoints = iterator_to_array($collector->collect($this->fixturesPath), preserve_keys: false);
+
+        // Find the entry point for UserController::index
+        $userIndexEntryPoint = null;
+        foreach ($entryPoints as $ep) {
+            if ($ep->className === 'App\\Http\\Controllers\\UserController' && $ep->methodName === 'index') {
+                $userIndexEntryPoint = $ep;
+                break;
+            }
+        }
+
+        $this->assertNotNull($userIndexEntryPoint);
+        $this->assertEquals('/api/users', $userIndexEntryPoint->routePath);
+    }
+
+    public function testBasePrefixCombinesWithRoutePrefix(): void
+    {
+        // Base prefix + Route::prefix() should combine
+        $collector = (new RouteCollector())->routeFile('routes/api.php', prefix: '/api');
+
+        $entryPoints = iterator_to_array($collector->collect($this->fixturesPath), preserve_keys: false);
+
+        // Find the entry point for OrderController::index (inside Route::prefix('orders'))
+        $orderIndexEntryPoint = null;
+        foreach ($entryPoints as $ep) {
+            if ($ep->className === 'App\\Http\\Controllers\\OrderController' && $ep->methodName === 'index') {
+                $orderIndexEntryPoint = $ep;
+                break;
+            }
+        }
+
+        $this->assertNotNull($orderIndexEntryPoint);
+        $this->assertEquals('/api/orders', $orderIndexEntryPoint->routePath);
+    }
+
+    public function testBasePrefixCombinesWithNestedPrefixes(): void
+    {
+        // Base prefix + Route::prefix('billing') should combine
+        $collector = (new RouteCollector())->routeFile('routes/api.php', prefix: '/api');
+
+        $entryPoints = iterator_to_array($collector->collect($this->fixturesPath), preserve_keys: false);
+
+        // Find the entry point for InvoiceController::index (inside Route::prefix('billing'))
+        $invoiceIndexEntryPoint = null;
+        foreach ($entryPoints as $ep) {
+            if (
+                $ep->className === 'App\\Modules\\Billing\\Http\\Controllers\\InvoiceController'
+                && $ep->methodName === 'index'
+            ) {
+                $invoiceIndexEntryPoint = $ep;
+                break;
+            }
+        }
+
+        $this->assertNotNull($invoiceIndexEntryPoint);
+        $this->assertEquals('/api/billing/invoices', $invoiceIndexEntryPoint->routePath);
+    }
+
+    public function testBasePrefixNormalizesSlashes(): void
+    {
+        // Prefix with/without leading/trailing slashes should work
+        $collector = (new RouteCollector())->routeFile('routes/api.php', prefix: 'api/');
+
+        $entryPoints = iterator_to_array($collector->collect($this->fixturesPath), preserve_keys: false);
+
+        // Find the entry point for UserController::index
+        $userIndexEntryPoint = null;
+        foreach ($entryPoints as $ep) {
+            if ($ep->className === 'App\\Http\\Controllers\\UserController' && $ep->methodName === 'index') {
+                $userIndexEntryPoint = $ep;
+                break;
+            }
+        }
+
+        $this->assertNotNull($userIndexEntryPoint);
+        $this->assertEquals('/api/users', $userIndexEntryPoint->routePath);
+    }
 }

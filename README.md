@@ -57,7 +57,7 @@ return GuardrailConfig::create()
     ->paths(['app'])
     ->rule('authorization', function (RuleBuilder $rule): void {
         $rule->entryPoints()
-            ->route('routes/api.php')
+            ->route('routes/api.php', prefix: '/api')
             ->end();
 
         $rule->mustCall([Authorizer::class, 'authorize'])
@@ -118,6 +118,16 @@ $rule->entryPoints()
     ->end();
 ```
 
+#### With RouteServiceProvider Prefix
+
+Laravel's `RouteServiceProvider` often adds a prefix (like `/api`) to route files. Use the `prefix` parameter to include this:
+
+```php
+$rule->entryPoints()
+    ->route('routes/api.php', prefix: '/api')  // Routes will be /api/users, /api/orders, etc.
+    ->end();
+```
+
 #### From Namespace Patterns
 
 ```php
@@ -130,11 +140,11 @@ $rule->entryPoints()
 
 ### Excluding Routes
 
-Exclude specific routes from analysis.
+Exclude specific routes from analysis. Patterns match against the full route path (including prefix).
 
 ```php
 $rule->entryPoints()
-    ->route('routes/api.php')
+    ->route('routes/api.php', prefix: '/api')
     ->excludeRoutes(
         '/api/login',        // Exact match
         '/api/public/*',     // Single segment: /api/public/docs
@@ -177,11 +187,11 @@ $rule->mustCallAnyOf([
 return GuardrailConfig::create()
     ->paths(['app', 'Modules'])
     ->rule('authorization', function (RuleBuilder $rule): void {
-        $rule->entryPoints()->route('routes/api.php')->end();
+        $rule->entryPoints()->route('routes/api.php', prefix: '/api')->end();
         $rule->mustCall([Authorizer::class, 'authorize'])->atLeastOnce();
     })
     ->rule('audit-logging', function (RuleBuilder $rule): void {
-        $rule->entryPoints()->route('routes/admin.php')->end();
+        $rule->entryPoints()->route('routes/admin.php', prefix: '/admin')->end();
         $rule->mustCall([AuditLogger::class, 'log'])->atLeastOnce();
     });
 ```

@@ -18,13 +18,19 @@ use PhpParser\ParserFactory;
  */
 final class RouteCollector implements CollectorInterface
 {
-    /** @var list<string> */
+    /** @var list<array{path: string, prefix: string}> */
     private array $routeFiles = [];
 
-    public function routeFile(string $path): self
+    /**
+     * Add a route file to collect entry points from.
+     *
+     * @param string $path Path to route file relative to project root (e.g., 'routes/api.php')
+     * @param string $prefix Base prefix to prepend to all routes (e.g., '/api' for RouteServiceProvider prefix)
+     */
+    public function routeFile(string $path, string $prefix = ''): self
     {
         $clone = clone $this;
-        $clone->routeFiles[] = $path;
+        $clone->routeFiles[] = ['path' => $path, 'prefix' => $prefix];
         return $clone;
     }
 
@@ -33,7 +39,7 @@ final class RouteCollector implements CollectorInterface
         $parser = (new ParserFactory())->createForNewestSupportedVersion();
 
         foreach ($this->routeFiles as $routeFile) {
-            $fullPath = $basePath . '/' . ltrim($routeFile, characters: '/');
+            $fullPath = $basePath . '/' . ltrim($routeFile['path'], characters: '/');
 
             if (!file_exists($fullPath)) {
                 continue;
@@ -54,7 +60,7 @@ final class RouteCollector implements CollectorInterface
                 continue;
             }
 
-            yield from $this->extractRouteEntryPoints($ast, $basePath);
+            yield from $this->extractRouteEntryPoints($ast, $basePath, $routeFile['prefix']);
         }
     }
 
@@ -62,9 +68,9 @@ final class RouteCollector implements CollectorInterface
      * @param array<Node> $ast
      * @return iterable<EntryPoint>
      */
-    private function extractRouteEntryPoints(array $ast, string $basePath): iterable
+    private function extractRouteEntryPoints(array $ast, string $basePath, string $basePrefix): iterable
     {
-        $visitor = new class($basePath) extends NodeVisitorAbstract {
+        $visitor = new class($basePath, $basePrefix) extends NodeVisitorAbstract {
             /** @var list<EntryPoint> */
             public array $entryPoints = [];
 
@@ -76,6 +82,7 @@ final class RouteCollector implements CollectorInterface
 
             public function __construct(
                 private readonly string $basePath,
+                private readonly string $basePrefix,
             ) {}
 
             public function enterNode(Node $node): ?int
@@ -223,12 +230,11 @@ final class RouteCollector implements CollectorInterface
                         continue;
                     }
 
-                    $nodes = null;
-                    if ($arg->value instanceof Node\Expr\Closure) {
-                        $nodes = $arg->value->stmts;
-                    } elseif ($arg->value instanceof Node\Expr\ArrowFunction) {
-                        $nodes = [$arg->value->expr];
-                    }
+                    $nodes = match (true) {
+                        $arg->value instanceof Node\Expr\Closure => $arg->value->stmts,
+                        $arg->value instanceof Node\Expr\ArrowFunction => [$arg->value->expr],
+                        default => null,
+                    };
 
                     if ($nodes !== null) {
                         $traverser = new NodeTraverser();
@@ -265,14 +271,23 @@ final class RouteCollector implements CollectorInterface
 
             private function buildFullPath(?string $routePath): ?string
             {
-                if ($this->prefixStack === [] && $routePath === null) {
+                if ($this->basePrefix === '' && $this->prefixStack === [] && $routePath === null) {
                     return null;
                 }
 
                 $parts = [];
+
+                // Add base prefix (from RouteServiceProvider)
+                if ($this->basePrefix !== '') {
+                    $parts[] = trim($this->basePrefix, characters: '/');
+                }
+
+                // Add prefixes from Route::prefix()->group() calls
                 foreach ($this->prefixStack as $prefix) {
                     $parts[] = trim($prefix, characters: '/');
                 }
+
+                // Add the route path itself
                 if ($routePath !== null) {
                     $parts[] = trim($routePath, characters: '/');
                 }
