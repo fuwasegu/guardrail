@@ -14,6 +14,9 @@ final class RuleBuilder
     /** @var list<MethodReference> */
     private array $requiredCalls = [];
 
+    /** @var list<PairedCallRequirement> */
+    private array $pairedCallRequirements = [];
+
     private PathCondition $pathCondition = PathCondition::AtLeastOnce;
 
     private ?string $message = null;
@@ -71,14 +74,40 @@ final class RuleBuilder
         return $this;
     }
 
+    /**
+     * Define a paired call requirement: when the trigger method is called,
+     * at least one of the required methods must also be called.
+     *
+     * Example:
+     *   $rule->whenCalls([DB::class, 'beginTransaction'])
+     *       ->mustAlsoCall([DB::class, 'commit'], [DB::class, 'rollback'])
+     *       ->end();
+     *
+     * @param array{0: class-string, 1: string} $trigger The method that triggers this requirement
+     */
+    public function whenCalls(array $trigger): PairedCallBuilder
+    {
+        return new PairedCallBuilder($this, MethodReference::fromArray($trigger));
+    }
+
+    /**
+     * @internal Used by PairedCallBuilder
+     */
+    public function addPairedCallRequirement(PairedCallRequirement $requirement): void
+    {
+        $this->pairedCallRequirements[] = $requirement;
+    }
+
     public function buildRule(): Rule
     {
         if ($this->entryPointBuilder === null) {
             throw new \LogicException("Rule '{$this->name}' must have entry points defined");
         }
 
-        if ($this->requiredCalls === []) {
-            throw new \LogicException("Rule '{$this->name}' must have at least one required call");
+        if ($this->requiredCalls === [] && $this->pairedCallRequirements === []) {
+            throw new \LogicException(
+                "Rule '{$this->name}' must have at least one required call or paired call requirement",
+            );
         }
 
         return new Rule(
@@ -87,6 +116,7 @@ final class RuleBuilder
             requiredCalls: $this->requiredCalls,
             pathCondition: $this->pathCondition,
             message: $this->message,
+            pairedCallRequirements: $this->pairedCallRequirements,
         );
     }
 }

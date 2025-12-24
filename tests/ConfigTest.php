@@ -227,6 +227,101 @@ final class ConfigTest extends TestCase
         $this->assertCount(1, $rules);
     }
 
+    public function testPairedCallsConfiguration(): void
+    {
+        $rules = GuardrailConfig::create()
+            ->rule('transaction', static function (RuleBuilder $rule): void {
+                $rule->entryPoints()->namespace('App\\*')->end();
+                $rule->whenCalls([self::class, 'beginTransaction'])->mustAlsoCall([self::class, 'commit'], [
+                    self::class,
+                    'rollback',
+                ])->end();
+            })
+            ->build();
+
+        $this->assertCount(1, $rules);
+        $this->assertCount(1, $rules[0]->pairedCallRequirements);
+        $this->assertCount(2, $rules[0]->pairedCallRequirements[0]->requiredCalls);
+    }
+
+    public function testPairedCallsWithMessage(): void
+    {
+        $rules = GuardrailConfig::create()
+            ->rule('transaction', static function (RuleBuilder $rule): void {
+                $rule->entryPoints()->namespace('App\\*')->end();
+                $rule
+                    ->whenCalls([self::class, 'beginTransaction'])
+                    ->mustAlsoCall([self::class, 'commit'])
+                    ->message('Must commit transaction')
+                    ->end();
+            })
+            ->build();
+
+        $this->assertSame('Must commit transaction', $rules[0]->pairedCallRequirements[0]->message);
+    }
+
+    public function testMultiplePairedCalls(): void
+    {
+        $rules = GuardrailConfig::create()
+            ->rule('resources', static function (RuleBuilder $rule): void {
+                $rule->entryPoints()->namespace('App\\*')->end();
+                $rule->whenCalls([self::class, 'beginTransaction'])->mustAlsoCall([self::class, 'commit'])->end();
+                $rule->whenCalls([self::class, 'acquireLock'])->mustAlsoCall([self::class, 'releaseLock'])->end();
+            })
+            ->build();
+
+        $this->assertCount(1, $rules);
+        $this->assertCount(2, $rules[0]->pairedCallRequirements);
+    }
+
+    public function testPairedCallsOnlyRule(): void
+    {
+        // Rule with ONLY whenCalls (no mustCall) should be valid
+        $rules = GuardrailConfig::create()
+            ->rule('transaction', static function (RuleBuilder $rule): void {
+                $rule->entryPoints()->namespace('App\\*')->end();
+                $rule->whenCalls([self::class, 'beginTransaction'])->mustAlsoCall([self::class, 'commit'])->end();
+            })
+            ->build();
+
+        $this->assertCount(1, $rules);
+        $this->assertEmpty($rules[0]->requiredCalls);
+        $this->assertCount(1, $rules[0]->pairedCallRequirements);
+    }
+
+    public function testPairedCallsWithoutRequiredCallsThrowsIfNoEnd(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Paired call requirement must have at least one required call');
+
+        GuardrailConfig::create()
+            ->rule('test', static function (RuleBuilder $rule): void {
+                $rule->entryPoints()->namespace('App\\*')->end();
+                $rule->whenCalls([self::class, 'method'])->end(); // No mustAlsoCall
+            })
+            ->build();
+    }
+
+    public static function beginTransaction(): void
+    {
+    }
+
+    public static function commit(): void
+    {
+    }
+
+    public static function rollback(): void
+    {
+    }
+
+    public static function acquireLock(): void
+    {
+    }
+
+    public static function releaseLock(): void
+    {
+    }
+
     public function dummyMethod(): void
     {
     }

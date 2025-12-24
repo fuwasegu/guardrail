@@ -17,6 +17,7 @@ final class Rule
      * @param list<MethodReference> $requiredCalls Methods that must be called
      * @param PathCondition $pathCondition How the required calls must be present
      * @param string|null $message Custom error message
+     * @param list<PairedCallRequirement> $pairedCallRequirements Paired call requirements (when X is called, Y must also be called)
      */
     public function __construct(
         public readonly string $name,
@@ -24,6 +25,7 @@ final class Rule
         public readonly array $requiredCalls,
         public readonly PathCondition $pathCondition,
         public readonly ?string $message = null,
+        public readonly array $pairedCallRequirements = [],
     ) {}
 
     public function getDisplayMessage(): string

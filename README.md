@@ -13,6 +13,7 @@ A static analysis tool for Laravel that verifies API route controllers always ca
   - [Excluding Routes](#excluding-routes)
   - [Filtering by HTTP Method](#filtering-by-http-method)
   - [Required Calls](#required-calls)
+  - [Paired Calls](#paired-calls)
 - [CLI](#cli)
 - [CI Integration](#ci-integration)
 - [How It Works](#how-it-works)
@@ -203,6 +204,40 @@ $rule->mustCallAnyOf([
 ])
     ->atLeastOnce();
 ```
+
+### Paired Calls
+
+Require that when one method is called, another must also be called. Useful for resource management patterns like transactions, locks, or file handles.
+
+```php
+// When beginTransaction is called, commit or rollback must also be called
+$rule->whenCalls([DB::class, 'beginTransaction'])
+    ->mustAlsoCall(
+        [DB::class, 'commit'],
+        [DB::class, 'rollback']
+    )
+    ->message('Transactions must be completed with commit() or rollback()')
+    ->end();
+```
+
+The paired call check works across function boundaries - if `beginTransaction()` is called in the entry point and `commit()` is called in a helper method, the requirement is satisfied.
+
+```php
+// This passes the check - commit is called indirectly
+class OrderService {
+    public function createOrder() {
+        DB::beginTransaction();
+        $this->processOrder();  // calls commit() internally
+    }
+
+    private function processOrder() {
+        // ... work ...
+        DB::commit();
+    }
+}
+```
+
+If the trigger method is not called, the requirement doesn't apply (no violation).
 
 ### Multiple Rules
 

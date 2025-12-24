@@ -19,15 +19,17 @@ final class RuleResult
 
     /**
      * @param list<AnalysisResult> $results
+     * @param list<PairedCallViolation> $pairedCallViolations
      */
     public function __construct(
         public readonly Rule $rule,
         public readonly array $results,
+        public readonly array $pairedCallViolations = [],
     ) {}
 
     public function hasViolations(): bool
     {
-        return $this->getViolationCount() > 0;
+        return $this->getViolationCount() > 0 || $this->pairedCallViolations !== [];
     }
 
     /**
@@ -55,6 +57,19 @@ final class RuleResult
     public function getViolationCount(): int
     {
         return count($this->getViolations());
+    }
+
+    public function getPairedViolationCount(): int
+    {
+        return count($this->pairedCallViolations);
+    }
+
+    /**
+     * Get total violation count (regular + paired call violations).
+     */
+    public function getTotalViolationCount(): int
+    {
+        return $this->getViolationCount() + $this->getPairedViolationCount();
     }
 
     public function getPassedCount(): int

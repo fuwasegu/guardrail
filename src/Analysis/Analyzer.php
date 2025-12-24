@@ -8,6 +8,7 @@ use Guardrail\Analysis\CallGraph\CallGraph;
 use Guardrail\Analysis\CallGraph\CallGraphBuilder;
 use Guardrail\Collector\EntryPoint;
 use Guardrail\Config\MethodReference;
+use Guardrail\Config\PairedCallRequirement;
 use Guardrail\Config\PathCondition;
 use Guardrail\Config\Rule;
 use Guardrail\Config\ScanConfig;
@@ -68,15 +69,28 @@ final class Analyzer
         $entryPoints = iterator_to_array($rule->entryPointCollector->collect($this->basePath), preserve_keys: false);
         $total = count($entryPoints);
         $results = [];
+        $pairedCallViolations = [];
 
         $this->reportProgress(AnalyzerProgress::analyzingRule($rule->name, 0, $total));
 
         foreach ($entryPoints as $index => $entryPoint) {
-            $results[] = $this->analyzeEntryPoint($entryPoint, $rule, $callGraph);
+            // Check required calls (mustCall / mustCallAnyOf)
+            if ($rule->requiredCalls !== []) {
+                $results[] = $this->analyzeEntryPoint($entryPoint, $rule, $callGraph);
+            }
+
+            // Check paired call requirements (whenCalls -> mustAlsoCall)
+            foreach ($rule->pairedCallRequirements as $requirement) {
+                $violation = $this->checkPairedCallRequirement($entryPoint, $requirement, $callGraph);
+                if ($violation !== null) {
+                    $pairedCallViolations[] = $violation;
+                }
+            }
+
             $this->reportProgress(AnalyzerProgress::analyzingRule($rule->name, $index + 1, $total));
         }
 
-        return new RuleResult($rule, $results);
+        return new RuleResult($rule, $results, $pairedCallViolations);
     }
 
     private function analyzeEntryPoint(EntryPoint $entryPoint, Rule $rule, CallGraph $callGraph): AnalysisResult
@@ -124,5 +138,50 @@ final class Analyzer
         }
 
         return new AnalysisResult(entryPoint: $entryPoint, requiredCall: $requiredCall, found: false);
+    }
+
+    /**
+     * Check if a paired call requirement is satisfied.
+     *
+     * Returns a violation if the trigger is called but none of the required methods are called.
+     * Returns null if:
+     *   - The trigger is not called (requirement doesn't apply)
+     *   - The trigger is called AND at least one required method is also called
+     */
+    private function checkPairedCallRequirement(
+        EntryPoint $entryPoint,
+        PairedCallRequirement $requirement,
+        CallGraph $callGraph,
+    ): ?PairedCallViolation {
+        // First, check if the trigger method is called
+        $triggerPath = $callGraph->findPathTo(
+            $entryPoint->className,
+            $entryPoint->methodName,
+            $requirement->trigger->className,
+            $requirement->trigger->methodName,
+        );
+
+        // If trigger is not called, the requirement doesn't apply
+        if ($triggerPath === null) {
+            return null;
+        }
+
+        // Trigger is called - check if any of the required methods are also called
+        foreach ($requirement->requiredCalls as $requiredCall) {
+            $hasPath = $callGraph->hasPathTo(
+                $entryPoint->className,
+                $entryPoint->methodName,
+                $requiredCall->className,
+                $requiredCall->methodName,
+            );
+
+            if ($hasPath) {
+                // At least one required method is called - requirement satisfied
+                return null;
+            }
+        }
+
+        // Trigger is called but none of the required methods are called - violation!
+        return new PairedCallViolation(entryPoint: $entryPoint, requirement: $requirement, triggerPath: $triggerPath);
     }
 }

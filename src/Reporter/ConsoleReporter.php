@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Guardrail\Reporter;
 
 use Guardrail\Analysis\AnalysisResult;
+use Guardrail\Analysis\PairedCallViolation;
 use Guardrail\Analysis\RuleResult;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -21,20 +22,22 @@ final class ConsoleReporter implements ReporterInterface
     public function report(array $results): int
     {
         $totalViolations = 0;
+        $totalPairedViolations = 0;
         $totalPassed = 0;
         $totalEntryPoints = 0;
 
         foreach ($results as $ruleResult) {
             $this->reportRule($ruleResult);
             $totalViolations += $ruleResult->getViolationCount();
+            $totalPairedViolations += count($ruleResult->pairedCallViolations);
             $totalPassed += $ruleResult->getPassedCount();
             $totalEntryPoints += $ruleResult->getTotalCount();
         }
 
         $this->output->writeln('');
-        $this->reportSummary($results, $totalViolations, $totalPassed, $totalEntryPoints);
+        $this->reportSummary($results, $totalViolations, $totalPairedViolations, $totalPassed, $totalEntryPoints);
 
-        return $totalViolations > 0 ? 1 : 0;
+        return $totalViolations > 0 || $totalPairedViolations > 0 ? 1 : 0;
     }
 
     private function reportRule(RuleResult $result): void
@@ -44,14 +47,25 @@ final class ConsoleReporter implements ReporterInterface
         $this->output->writeln(str_repeat('━', times: 60));
 
         $violations = $result->getViolations();
+        $pairedViolations = $result->pairedCallViolations;
 
-        if ($violations === []) {
-            $this->output->writeln(sprintf('<info>✓ All %d entry points passed</info>', $result->getTotalCount()));
+        if ($violations === [] && $pairedViolations === []) {
+            $passedCount = $result->getTotalCount();
+            if ($passedCount === 0) {
+                $this->output->writeln('<info>✓ No violations (paired call rules only)</info>');
+                return;
+            }
+
+            $this->output->writeln(sprintf('<info>✓ All %d entry points passed</info>', $passedCount));
             return;
         }
 
         foreach ($violations as $violation) {
             $this->reportViolation($violation);
+        }
+
+        foreach ($pairedViolations as $pairedViolation) {
+            $this->reportPairedViolation($pairedViolation);
         }
 
         if ($this->verbose) {
@@ -86,11 +100,31 @@ final class ConsoleReporter implements ReporterInterface
         }
     }
 
+    private function reportPairedViolation(PairedCallViolation $violation): void
+    {
+        $this->output->writeln('');
+        $this->output->writeln(sprintf('<error>✗ %s</error>', $violation->entryPoint->getIdentifier()));
+
+        $this->output->writeln(sprintf('  <fg=gray>%s</>', $violation->entryPoint->filePath));
+        $this->output->writeln(sprintf('  <fg=yellow>%s</>', $violation->getMessage()));
+
+        // Show the path to the trigger call
+        if ($violation->triggerPath !== []) {
+            $path = array_map(static fn($call) => $call->getCalleeIdentifier(), $violation->triggerPath);
+            $this->output->writeln(sprintf('  <fg=red>Trigger called via: %s</>', implode(' → ', $path)));
+        }
+    }
+
     /**
      * @param list<RuleResult> $results
      */
-    private function reportSummary(array $results, int $totalViolations, int $totalPassed, int $totalEntryPoints): void
-    {
+    private function reportSummary(
+        array $results,
+        int $totalViolations,
+        int $totalPairedViolations,
+        int $totalPassed,
+        int $totalEntryPoints,
+    ): void {
         $this->output->writeln(str_repeat('━', times: 60));
         $this->output->writeln('<comment>Summary</comment>');
         $this->output->writeln(str_repeat('━', times: 60));
@@ -105,17 +139,24 @@ final class ConsoleReporter implements ReporterInterface
             $rulesFailed > 0 ? "<error>{$rulesFailed} failed</error>" : '<info>0 failed</info>',
         ));
 
-        $this->output->writeln(sprintf(
-            'Entry points: %d total, <info>%d passed</info>, %s',
-            $totalEntryPoints,
-            $totalPassed,
-            $totalViolations > 0 ? "<error>{$totalViolations} failed</error>" : '<info>0 failed</info>',
-        ));
+        if ($totalEntryPoints > 0) {
+            $this->output->writeln(sprintf(
+                'Entry points: %d total, <info>%d passed</info>, %s',
+                $totalEntryPoints,
+                $totalPassed,
+                $totalViolations > 0 ? "<error>{$totalViolations} failed</error>" : '<info>0 failed</info>',
+            ));
+        }
+
+        if ($totalPairedViolations > 0) {
+            $this->output->writeln(sprintf('Paired calls: <error>%d violation(s)</error>', $totalPairedViolations));
+        }
 
         $this->output->writeln('');
 
-        if ($totalViolations > 0) {
-            $this->output->writeln(sprintf('<error>✗ %d violation(s) found</error>', $totalViolations));
+        $allViolations = $totalViolations + $totalPairedViolations;
+        if ($allViolations > 0) {
+            $this->output->writeln(sprintf('<error>✗ %d violation(s) found</error>', $allViolations));
             return;
         }
 
