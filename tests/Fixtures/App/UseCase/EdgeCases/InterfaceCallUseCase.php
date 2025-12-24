@@ -11,8 +11,7 @@ interface AuthorizerInterface
 
 /**
  * Edge case: authorize() is called via interface type hint
- * Test expectation: Guardrail reports violation (false negative)
- * [LIMITATION]: Interface type hints cannot be resolved to concrete implementations
+ * Expected: PASS - interface type is tracked from property type declaration
  */
 final class InterfaceCallUseCase
 {

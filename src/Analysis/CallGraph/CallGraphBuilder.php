@@ -18,12 +18,10 @@ use Symfony\Component\Finder\Finder;
  *   - Trait method calls: $this->traitMethod() is resolved to the trait.
  *   - Multi-level inheritance: Methods in grandparent classes are resolved.
  *   - Trait property access: Properties declared in using classes are resolved.
+ *   - Interface implementation resolution: Interface method calls are traced to all implementing classes.
  *
  * [LIMITATION]: Dynamic method calls cannot be analyzed.
  *   - $obj->$method(), call_user_func(), etc. are not detectable statically.
- *
- * [LIMITATION]: Interface type hints are not resolved to concrete implementations.
- *   - When a property is typed as an interface, calls on it cannot be traced.
  */
 final class CallGraphBuilder
 {
@@ -62,7 +60,7 @@ final class CallGraphBuilder
             $allAsts[] = $ast;
         }
 
-        // Pass 1: Collect class/trait definitions and properties
+        // Pass 1: Collect class/trait/interface definitions and properties
         foreach ($allAsts as $ast) {
             $this->collectDefinitions($ast);
         }
@@ -72,7 +70,52 @@ final class CallGraphBuilder
             $this->analyzeCalls($ast);
         }
 
+        // Pass 3: Link interface methods to implementing class methods
+        $this->linkInterfaceImplementations();
+
         return $this->callGraph;
+    }
+
+    /**
+     * Pass 3: Create virtual calls from interface methods to implementing class methods.
+     * This allows call graph traversal through interface type hints.
+     */
+    private function linkInterfaceImplementations(): void
+    {
+        // Get all methods from the call graph
+        $allMethods = $this->callGraph->getAllMethods();
+
+        foreach ($allMethods as $method) {
+            [$className, $methodName] = explode('::', $method);
+
+            // Check if this is an interface method
+            if (!$this->classHierarchy->isInterface($className)) {
+                continue;
+            }
+
+            // Find all classes implementing this interface
+            $implementingClasses = $this->classHierarchy->findClassesImplementing($className);
+
+            // Create virtual calls from interface method to implementing class methods
+            foreach ($implementingClasses as $implementingClass) {
+                // Verify the implementing class has this method
+                if (!$this->classHierarchy->hasMethodDefinition($implementingClass, $methodName)) {
+                    continue;
+                }
+
+                // Create a virtual call: Interface::method -> ImplementingClass::method
+                $call = new MethodCall(
+                    callerClass: $className,
+                    callerMethod: $methodName,
+                    calleeClass: $implementingClass,
+                    calleeMethod: $methodName,
+                    line: 0, // Virtual call, no actual line
+                    isStatic: false,
+                );
+
+                $this->callGraph->addCall($call);
+            }
+        }
     }
 
     /**
@@ -139,12 +182,20 @@ final class DefinitionCollectorVisitor extends NodeVisitorAbstract
             $this->enterTrait($node);
         }
 
+        if ($node instanceof Node\Stmt\Interface_) {
+            $this->enterInterface($node);
+        }
+
         return null;
     }
 
     public function leaveNode(Node $node): Node|array|int|null
     {
-        if ($node instanceof Node\Stmt\Class_ || $node instanceof Node\Stmt\Trait_) {
+        if (
+            $node instanceof Node\Stmt\Class_
+            || $node instanceof Node\Stmt\Trait_
+            || $node instanceof Node\Stmt\Interface_
+        ) {
             $this->currentClass = null;
         }
 
@@ -190,6 +241,29 @@ final class DefinitionCollectorVisitor extends NodeVisitorAbstract
         }
     }
 
+    private function enterInterface(Node\Stmt\Interface_ $node): void
+    {
+        $nodeName = $node->name;
+        if ($nodeName === null) {
+            return;
+        }
+
+        $interfaceName = $nodeName->toString();
+        $this->currentClass = $this->currentNamespace !== null
+            ? $this->currentNamespace . '\\' . $interfaceName
+            : $interfaceName;
+
+        $currentClass = $this->currentClass;
+
+        // Mark as interface
+        $this->classHierarchy->markAsInterface($currentClass);
+
+        // Record method definitions in interface
+        foreach ($node->getMethods() as $method) {
+            $this->classHierarchy->addMethodDefinition($currentClass, $method->name->toString());
+        }
+    }
+
     private function enterClass(Node\Stmt\Class_ $node): void
     {
         $nodeName = $node->name;
@@ -210,6 +284,13 @@ final class DefinitionCollectorVisitor extends NodeVisitorAbstract
             $parentClass = $this->resolveName($node->extends);
         }
         $this->classHierarchy->setClassParent($currentClass, $parentClass);
+
+        // Record implemented interfaces
+        $interfaces = [];
+        foreach ($node->implements as $implement) {
+            $interfaces[] = $this->resolveName($implement);
+        }
+        $this->classHierarchy->setClassInterfaces($currentClass, $interfaces);
 
         // Record used traits
         $traits = [];
@@ -300,7 +381,10 @@ final class CallAnalyzerVisitor extends NodeVisitorAbstract
             $this->enterMethod($node);
         }
 
-        if ($node instanceof Node\Expr\MethodCall && $this->currentMethod !== null) {
+        if (
+            ($node instanceof Node\Expr\MethodCall || $node instanceof Node\Expr\NullsafeMethodCall)
+            && $this->currentMethod !== null
+        ) {
             $this->analyzeMethodCall($node);
         }
 
@@ -373,7 +457,7 @@ final class CallAnalyzerVisitor extends NodeVisitorAbstract
         }
     }
 
-    private function analyzeMethodCall(Node\Expr\MethodCall $node): void
+    private function analyzeMethodCall(Node\Expr\MethodCall|Node\Expr\NullsafeMethodCall $node): void
     {
         if (!$node->name instanceof Node\Identifier) {
             return;

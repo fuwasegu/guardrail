@@ -46,7 +46,7 @@
         "lint:fix": "mago lint --fix",
         "format": "mago format",
         "analyze": "mago analyze",
-        "cs": ["@format", "@lint"]
+        "cs": ["@format", "@lint", "@analyze"]
     },
     "config": {
         "sort-packages": true,

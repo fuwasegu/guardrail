@@ -7,9 +7,8 @@ namespace App\UseCase\EdgeCases;
 use App\Auth\Authorizer;
 
 /**
- * Edge case: authorize() is called only in some branches
- * Expected: PASS with atLeastOnce() (current behavior)
- * Note: With onAllPaths() this should FAIL
+ * Edge case: authorize() is called inside conditional branches
+ * Expected: PASS - conditional calls should be detected
  */
 final class ConditionalCallUseCase
 {
@@ -17,12 +16,12 @@ final class ConditionalCallUseCase
         private readonly Authorizer $authorizer,
     ) {}
 
-    public function execute(bool $needsAuth): void
+    public function execute(bool $flag): void
     {
-        if ($needsAuth) {
+        if ($flag) {
             $this->authorizer->authorize();
+        } else {
+            // Some other logic
         }
-
-        // If needsAuth is false, authorize() is never called
     }
 }

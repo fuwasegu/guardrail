@@ -6,27 +6,26 @@ namespace App\UseCase\EdgeCases;
 
 use App\Auth\Authorizer;
 
-abstract class AbstractAuthorizedUseCase
+abstract class BaseUseCase
 {
     public function __construct(
         protected readonly Authorizer $authorizer,
     ) {}
 
-    protected function ensureAuthorized(): void
+    protected function authorize(): void
     {
         $this->authorizer->authorize();
     }
 }
 
 /**
- * Edge case: authorize() is called via parent class method
- * Expected: PASS (authorize is called via parent)
- * Status: PASS - Parent class method resolution implemented
+ * Edge case: authorize() is called through parent class method
+ * Expected: Need to verify if parent method calls are tracked
  */
-final class ParentCallUseCase extends AbstractAuthorizedUseCase
+final class ParentCallUseCase extends BaseUseCase
 {
     public function execute(): void
     {
-        $this->ensureAuthorized();
+        $this->authorize();
     }
 }

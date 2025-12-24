@@ -6,9 +6,9 @@ namespace App\UseCase\EdgeCases;
 
 use App\Auth\Authorizer;
 
-trait AuthorizableTrait
+trait AuthorizeTrait
 {
-    private Authorizer $authorizer;
+    private readonly Authorizer $authorizer;
 
     protected function doAuthorize(): void
     {
@@ -17,18 +17,16 @@ trait AuthorizableTrait
 }
 
 /**
- * Edge case: authorize() is called via trait method
- * Expected: PASS (authorize is called via trait)
- * Status: PASS - Trait method resolution implemented
+ * Edge case: authorize() is called through a trait method
+ * Expected: Need to verify if trait method calls are tracked
  */
 final class TraitCallUseCase
 {
-    use AuthorizableTrait;
+    use AuthorizeTrait;
 
-    public function __construct(Authorizer $authorizer)
-    {
-        $this->authorizer = $authorizer;
-    }
+    public function __construct(
+        private readonly Authorizer $authorizer,
+    ) {}
 
     public function execute(): void
     {

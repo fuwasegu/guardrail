@@ -7,20 +7,19 @@ namespace App\UseCase\EdgeCases;
 use App\Auth\Authorizer;
 
 /**
- * Edge case: authorize() is called inside a closure
- * Expected: PASS - closure calls with $this are detected
+ * Edge case: authorize() is called inside a loop
+ * Expected: PASS - loop calls should be detected
  */
-final class ClosureCallUseCase
+final class LoopCallUseCase
 {
     public function __construct(
         private readonly Authorizer $authorizer,
     ) {}
 
-    public function execute(): void
+    public function execute(array $items): void
     {
-        $callback = function () {
+        foreach ($items as $item) {
             $this->authorizer->authorize();
-        };
-        $callback();
+        }
     }
 }

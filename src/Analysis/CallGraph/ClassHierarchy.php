@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Guardrail\Analysis\CallGraph;
 
 /**
- * Manages class inheritance, traits, and method definitions.
+ * Manages class inheritance, traits, interfaces, and method definitions.
  */
 final class ClassHierarchy
 {
@@ -15,11 +15,17 @@ final class ClassHierarchy
     /** @var array<string, list<string>> Class => used traits */
     private array $classTraits = [];
 
+    /** @var array<string, list<string>> Class => implemented interfaces */
+    private array $classInterfaces = [];
+
     /** @var array<string, string> Method => defining class (where method is defined) */
     private array $methodDefinitions = [];
 
     /** @var array<string, true> Traits (for distinguishing from classes) */
     private array $traits = [];
+
+    /** @var array<string, true> Interfaces (for distinguishing from classes) */
+    private array $interfaces = [];
 
     public function setClassParent(string $className, ?string $parentClass): void
     {
@@ -55,6 +61,50 @@ final class ClassHierarchy
     public function isTrait(string $className): bool
     {
         return isset($this->traits[$className]);
+    }
+
+    public function markAsInterface(string $interfaceName): void
+    {
+        $this->interfaces[$interfaceName] = true;
+    }
+
+    public function isInterface(string $className): bool
+    {
+        return isset($this->interfaces[$className]);
+    }
+
+    /**
+     * @param list<string> $interfaces
+     */
+    public function setClassInterfaces(string $className, array $interfaces): void
+    {
+        $this->classInterfaces[$className] = $interfaces;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getClassInterfaces(string $className): array
+    {
+        return $this->classInterfaces[$className] ?? [];
+    }
+
+    /**
+     * Find classes that implement the given interface.
+     *
+     * @return list<string>
+     */
+    public function findClassesImplementing(string $interfaceName): array
+    {
+        $classes = [];
+        foreach ($this->classInterfaces as $class => $interfaces) {
+            if (!in_array($interfaceName, $interfaces, strict: true)) {
+                continue;
+            }
+
+            $classes[] = $class;
+        }
+        return $classes;
     }
 
     /**

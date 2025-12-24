@@ -7,10 +7,10 @@ namespace App\UseCase\EdgeCases;
 use App\Auth\Authorizer;
 
 /**
- * Edge case: authorize() is called inside a closure
- * Expected: PASS - closure calls with $this are detected
+ * Edge case: authorize() is called inside try/catch block
+ * Expected: PASS - try/catch calls should be detected
  */
-final class ClosureCallUseCase
+final class TryCatchCallUseCase
 {
     public function __construct(
         private readonly Authorizer $authorizer,
@@ -18,9 +18,10 @@ final class ClosureCallUseCase
 
     public function execute(): void
     {
-        $callback = function () {
+        try {
             $this->authorizer->authorize();
-        };
-        $callback();
+        } catch (\Exception $e) {
+            // Handle exception
+        }
     }
 }

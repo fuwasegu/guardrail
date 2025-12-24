@@ -301,6 +301,59 @@ jobs:
 3. Verifies reachability to the specified methods
 4. Reports unreachable entry points
 
+## Supported Patterns
+
+The following call patterns are detected:
+
+- ✅ Direct method calls: `$this->authorizer->authorize()`
+- ✅ Static calls: `Authorizer::authorize()`
+- ✅ Closure calls: `$closure = function() { $this->authorizer->authorize(); }`
+- ✅ Null-safe operator: `$this->authorizer?->authorize()`
+- ✅ First-class callable: `$callable = $this->authorizer->authorize(...)`
+- ✅ Interface type hints: `AuthorizerInterface $authorizer`
+- ✅ **Interface implementation resolution**: When calling a method on an interface-typed property, all implementing classes are analyzed
+- ✅ Trait method calls: calls through trait methods
+- ✅ Parent class methods: calls through inherited methods
+- ✅ Conditional/Loop/Try-Catch: calls inside control structures
+
+### Interface Implementation Resolution Example
+
+```php
+// When your Controller calls a UseCase via interface:
+class OrderController
+{
+    public function __construct(
+        private readonly CreateOrderUseCaseInterface $useCase  // Interface
+    ) {}
+
+    public function store(): Response
+    {
+        $this->useCase->execute();  // Guardrail traces through to all implementing classes
+    }
+}
+
+// Guardrail will find that CreateOrderUseCase::execute() calls authorize()
+class CreateOrderUseCase implements CreateOrderUseCaseInterface
+{
+    public function execute(): void
+    {
+        $this->authorizer->authorize();  // This is detected!
+    }
+}
+```
+
+## Known Limitations
+
+As a static analysis tool, certain patterns cannot be detected:
+
+| Pattern | Example | Reason |
+|---------|---------|--------|
+| Dynamic method calls | `$method = 'authorize'; $this->authorizer->$method()` | Method name resolved at runtime |
+| `call_user_func` | `call_user_func([$this->authorizer, 'authorize'])` | Target resolved at runtime |
+| Local variable types | `$auth = $this->authorizer; $auth->authorize()` | Type inference not implemented |
+| Factory pattern | `$auth = $factory->create(); $auth->authorize()` | Return type tracking not implemented |
+| Chained calls | `$this->holder->getAuthorizer()->authorize()` | Return type tracking not implemented |
+
 ## Requirements
 
 - PHP 8.1+

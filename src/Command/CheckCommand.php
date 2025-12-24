@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Guardrail\Command;
 
 use Guardrail\Analysis\Analyzer;
+use Guardrail\Analysis\AnalyzerProgress;
+use Guardrail\Analysis\ProgressPhase;
 use Guardrail\Config\GuardrailConfig;
 use Guardrail\Reporter\ConsoleReporter;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -91,12 +94,38 @@ final class CheckCommand extends Command
         $io->text(sprintf('Analyzing with <info>%d rule(s)</info>...', count($rules)));
         $io->newLine();
 
-        // Run analysis
+        // Run analysis with progress bar
         $analyzer = new Analyzer($basePath);
+        $progressBar = null;
+        $currentRuleName = '';
+
+        $analyzer->onProgress(function (AnalyzerProgress $progress) use (
+            $output,
+            &$progressBar,
+            &$currentRuleName,
+        ): void {
+            match ($progress->phase) {
+                ProgressPhase::BuildingCallGraph => $this->showBuildingMessage($output),
+                ProgressPhase::CallGraphBuilt => $this->clearBuildingMessage($output),
+                ProgressPhase::AnalyzingRule => $this->updateProgressBar(
+                    $output,
+                    $progress,
+                    $progressBar,
+                    $currentRuleName,
+                ),
+            };
+        });
 
         try {
             $results = $analyzer->analyze($rules);
+            if ($progressBar !== null) {
+                $progressBar->finish();
+                $output->writeln('');
+            }
         } catch (\Throwable $e) {
+            if ($progressBar !== null) {
+                $progressBar->clear();
+            }
             $io->error(sprintf('Analysis failed: %s', $e->getMessage()));
             return Command::FAILURE;
         }
@@ -116,5 +145,41 @@ final class CheckCommand extends Command
         }
 
         return null;
+    }
+
+    private function showBuildingMessage(OutputInterface $output): void
+    {
+        $output->write('<comment>Building call graph...</comment>');
+    }
+
+    private function clearBuildingMessage(OutputInterface $output): void
+    {
+        // Clear the building message and move cursor back
+        $output->write("\r" . str_repeat(' ', times: 30) . "\r");
+    }
+
+    private function updateProgressBar(
+        OutputInterface $output,
+        AnalyzerProgress $progress,
+        ?ProgressBar &$progressBar,
+        string &$currentRuleName,
+    ): void {
+        if ($progress->ruleName !== $currentRuleName) {
+            // New rule started
+            if ($progressBar !== null) {
+                $progressBar->finish();
+                $output->writeln('');
+            }
+
+            $currentRuleName = $progress->ruleName ?? '';
+            $progressBar = new ProgressBar($output, $progress->total);
+            $progressBar->setFormat(" <info>%message%</info>\n %current%/%max% [%bar%] %percent:3s%%");
+            $progressBar->setMessage(sprintf('Rule: %s', $currentRuleName));
+            $progressBar->start();
+        }
+
+        if ($progressBar !== null) {
+            $progressBar->setProgress($progress->current);
+        }
     }
 }

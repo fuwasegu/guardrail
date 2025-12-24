@@ -16,9 +16,21 @@ use Guardrail\Config\Rule;
  */
 final class Analyzer
 {
+    /** @var (callable(AnalyzerProgress): void)|null */
+    private $progressCallback = null;
+
     public function __construct(
         private readonly string $basePath,
     ) {}
+
+    /**
+     * @param callable(AnalyzerProgress): void $callback
+     */
+    public function onProgress(callable $callback): self
+    {
+        $this->progressCallback = $callback;
+        return $this;
+    }
 
     /**
      * @param list<Rule> $rules
@@ -26,8 +38,12 @@ final class Analyzer
      */
     public function analyze(array $rules): array
     {
+        $this->reportProgress(AnalyzerProgress::buildingCallGraph());
+
         // Build call graph once for the analysis
         $callGraph = (new CallGraphBuilder())->build($this->basePath);
+
+        $this->reportProgress(AnalyzerProgress::callGraphBuilt());
 
         $results = [];
         foreach ($rules as $rule) {
@@ -37,14 +53,25 @@ final class Analyzer
         return $results;
     }
 
+    private function reportProgress(AnalyzerProgress $progress): void
+    {
+        if ($this->progressCallback !== null) {
+            ($this->progressCallback)($progress);
+        }
+    }
+
     private function analyzeRule(Rule $rule, CallGraph $callGraph): RuleResult
     {
         // Use false for preserve_keys to avoid key collisions from yield from
         $entryPoints = iterator_to_array($rule->entryPointCollector->collect($this->basePath), preserve_keys: false);
+        $total = count($entryPoints);
         $results = [];
 
-        foreach ($entryPoints as $entryPoint) {
+        $this->reportProgress(AnalyzerProgress::analyzingRule($rule->name, 0, $total));
+
+        foreach ($entryPoints as $index => $entryPoint) {
             $results[] = $this->analyzeEntryPoint($entryPoint, $rule, $callGraph);
+            $this->reportProgress(AnalyzerProgress::analyzingRule($rule->name, $index + 1, $total));
         }
 
         return new RuleResult($rule, $results);
