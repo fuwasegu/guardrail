@@ -189,7 +189,10 @@ final class RouteCollectorTest extends TestCase
         // Find the entry point for InvoiceController::index (inside Route::prefix('billing'))
         $invoiceIndexEntryPoint = null;
         foreach ($entryPoints as $ep) {
-            if ($ep->className === 'App\\Modules\\Billing\\Http\\Controllers\\InvoiceController' && $ep->methodName === 'index') {
+            if (
+                $ep->className === 'App\\Modules\\Billing\\Http\\Controllers\\InvoiceController'
+                && $ep->methodName === 'index'
+            ) {
                 $invoiceIndexEntryPoint = $ep;
                 break;
             }

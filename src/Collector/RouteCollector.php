@@ -132,7 +132,11 @@ final class RouteCollector implements CollectorInterface
                     // Route::prefix('xxx')->group()
                     if ($node->var->name instanceof Node\Identifier && $node->var->name->toString() === 'prefix') {
                         $args = $node->var->args;
-                        if ($args !== [] && $args[0] instanceof Node\Arg && $args[0]->value instanceof Node\Scalar\String_) {
+                        if (
+                            $args !== []
+                            && $args[0] instanceof Node\Arg
+                            && $args[0]->value instanceof Node\Scalar\String_
+                        ) {
                             return $args[0]->value->value;
                         }
                     }
@@ -140,7 +144,11 @@ final class RouteCollector implements CollectorInterface
                     // Route::group(['prefix' => 'xxx'], ...) pattern
                     if ($node->var->name instanceof Node\Identifier && $node->var->name->toString() === 'group') {
                         $args = $node->args;
-                        if ($args !== [] && $args[0] instanceof Node\Arg && $args[0]->value instanceof Node\Expr\Array_) {
+                        if (
+                            $args !== []
+                            && $args[0] instanceof Node\Arg
+                            && $args[0]->value instanceof Node\Expr\Array_
+                        ) {
                             return $this->extractPrefixFromArray($args[0]->value);
                         }
                     }
@@ -157,7 +165,11 @@ final class RouteCollector implements CollectorInterface
                 while ($expr instanceof Node\Expr\MethodCall) {
                     if ($expr->name instanceof Node\Identifier && $expr->name->toString() === 'prefix') {
                         $args = $expr->args;
-                        if ($args !== [] && $args[0] instanceof Node\Arg && $args[0]->value instanceof Node\Scalar\String_) {
+                        if (
+                            $args !== []
+                            && $args[0] instanceof Node\Arg
+                            && $args[0]->value instanceof Node\Scalar\String_
+                        ) {
                             return $args[0]->value->value;
                         }
                     }
@@ -169,7 +181,11 @@ final class RouteCollector implements CollectorInterface
                     if ($expr->class instanceof Node\Name && $expr->class->toString() === 'Route') {
                         if ($expr->name instanceof Node\Identifier && $expr->name->toString() === 'prefix') {
                             $args = $expr->args;
-                            if ($args !== [] && $args[0] instanceof Node\Arg && $args[0]->value instanceof Node\Scalar\String_) {
+                            if (
+                                $args !== []
+                                && $args[0] instanceof Node\Arg
+                                && $args[0]->value instanceof Node\Scalar\String_
+                            ) {
                                 return $args[0]->value->value;
                             }
                         }
@@ -206,10 +222,18 @@ final class RouteCollector implements CollectorInterface
                     if (!$arg instanceof Node\Arg) {
                         continue;
                     }
-                    if ($arg->value instanceof Node\Expr\Closure || $arg->value instanceof Node\Expr\ArrowFunction) {
+
+                    $nodes = null;
+                    if ($arg->value instanceof Node\Expr\Closure) {
+                        $nodes = $arg->value->stmts;
+                    } elseif ($arg->value instanceof Node\Expr\ArrowFunction) {
+                        $nodes = [$arg->value->expr];
+                    }
+
+                    if ($nodes !== null) {
                         $traverser = new NodeTraverser();
                         $traverser->addVisitor($this);
-                        $traverser->traverse($arg->value->stmts ?? [$arg->value->expr]);
+                        $traverser->traverse($nodes);
                     }
                 }
             }
@@ -247,10 +271,10 @@ final class RouteCollector implements CollectorInterface
 
                 $parts = [];
                 foreach ($this->prefixStack as $prefix) {
-                    $parts[] = trim($prefix, '/');
+                    $parts[] = trim($prefix, characters: '/');
                 }
                 if ($routePath !== null) {
-                    $parts[] = trim($routePath, '/');
+                    $parts[] = trim($routePath, characters: '/');
                 }
 
                 return '/' . implode('/', array_filter($parts));

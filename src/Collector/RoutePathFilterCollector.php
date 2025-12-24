@@ -54,8 +54,8 @@ final class RoutePathFilterCollector implements CollectorInterface
     private function matchesPattern(string $routePath, string $pattern): bool
     {
         // Normalize paths
-        $routePath = '/' . ltrim($routePath, '/');
-        $pattern = '/' . ltrim($pattern, '/');
+        $routePath = '/' . ltrim($routePath, characters: '/');
+        $pattern = '/' . ltrim($pattern, characters: '/');
 
         // Exact match
         if ($routePath === $pattern) {
@@ -71,13 +71,13 @@ final class RoutePathFilterCollector implements CollectorInterface
     {
         // Split pattern by ** and * to handle them separately
         // Strategy: escape everything, then replace escaped wildcards with regex
-        $escaped = preg_quote($pattern, '#');
+        $escaped = preg_quote($pattern, delimiter: '#');
 
         // \*\* (escaped **) -> .* (match any characters including /)
-        $escaped = str_replace('\\*\\*', '.*', $escaped);
+        $escaped = str_replace(search: '\\*\\*', replace: '.*', subject: $escaped);
 
         // \* (escaped *) -> [^/]* (match any characters except /)
-        $escaped = str_replace('\\*', '[^/]*', $escaped);
+        $escaped = str_replace(search: '\\*', replace: '[^/]*', subject: $escaped);
 
         return '#^' . $escaped . '$#';
     }
